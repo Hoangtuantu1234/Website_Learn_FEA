@@ -141,6 +141,12 @@ class QuizAttemptRequestTest extends TestCase
         $this->assertSame($instructor->id, $attemptRequest->reviewed_by);
         $this->assertNotNull($attemptRequest->reviewed_at);
 
+        // Kiểm tra đã gửi thông báo đến học viên
+        $this->assertDatabaseHas('push_notifications', [
+            'user_id' => $student->id,
+            'type' => 'quiz_attempt_granted',
+        ]);
+
         // 7. Giảng viên không thể duyệt cùng một yêu cầu 2 lần
         $secondApprove = $this->actingAs($instructor)->post(route('instructor.quiz-attempt-requests.approve', $attemptRequest));
         $secondApprove->assertStatus(422);
@@ -240,6 +246,12 @@ class QuizAttemptRequestTest extends TestCase
         $this->assertSame('Không đủ điều kiện cấp lại lượt.', $attemptRequest->rejection_reason);
         $this->assertSame(0, $attemptRequest->extra_attempts_granted);
 
+        // Kiểm tra đã gửi thông báo từ chối đến học viên
+        $this->assertDatabaseHas('push_notifications', [
+            'user_id' => $student->id,
+            'type' => 'quiz_attempt_rejected',
+        ]);
+
         // Học viên tiếp tục bị khóa vì không được cấp thêm lượt
         $availability = app(QuizAttemptService::class)->attemptAvailability($quiz, $student);
         $this->assertFalse($availability['has_remaining_attempts']);
@@ -274,6 +286,48 @@ class QuizAttemptRequestTest extends TestCase
         // Giảng viên khác không thể từ chối
         $this->actingAs($otherInstructor)->post(route('instructor.quiz-attempt-requests.reject', $attemptRequest))
             ->assertStatus(403);
+    }
+
+    public function test_multiple_requests_for_same_quiz_are_grouped_and_display_request_number(): void
+    {
+        [$instructor, $student, $course, $lesson, $quiz] = $this->setupCourseWithQuiz(3);
+
+        // Yêu cầu lần 1 (đã duyệt)
+        $req1 = QuizAttemptRequest::create([
+            'user_id' => $student->id,
+            'quiz_id' => $quiz->id,
+            'course_id' => $course->id,
+            'lesson_id' => $lesson->id,
+            'attempts_used' => 3,
+            'max_attempts' => 3,
+            'reason' => 'Xin cấp lần 1',
+            'status' => QuizAttemptRequest::STATUS_APPROVED,
+            'extra_attempts_granted' => 1,
+            'reviewed_by' => $instructor->id,
+            'reviewed_at' => now()->subMinutes(10),
+            'created_at' => now()->subMinutes(15),
+        ]);
+
+        // Yêu cầu lần 2 (đang chờ xử lý)
+        $req2 = QuizAttemptRequest::create([
+            'user_id' => $student->id,
+            'quiz_id' => $quiz->id,
+            'course_id' => $course->id,
+            'lesson_id' => $lesson->id,
+            'attempts_used' => 4,
+            'max_attempts' => 3,
+            'reason' => 'Xin cấp lần 2 do mất mạng',
+            'status' => QuizAttemptRequest::STATUS_PENDING,
+            'created_at' => now(),
+        ]);
+
+        // Giảng viên xem danh sách -> chỉ thấy 1 dòng đại diện cho quiz này (yêu cầu mới nhất)
+        $response = $this->actingAs($instructor)->get(route('instructor.quiz-attempt-requests.index'));
+        $response->assertOk();
+        $response->assertSee('Yêu cầu cấp lần 2');
+        $response->assertSee('Xin cấp lần 2 do mất mạng');
+        // Không lặp dòng lý do của lần 1 ngoài bảng chính
+        $response->assertDontSee('Xin cấp lần 1');
     }
 
     /**

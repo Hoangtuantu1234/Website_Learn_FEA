@@ -58,12 +58,17 @@
                 <button
                     type="button"
                     role="tab"
+                    data-tab-name="{{ $key }}"
                     class="shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition"
                     :class="tab === '{{ $key }}' ? 'border-[#1c1d1f] text-[#1c1d1f]' : 'border-transparent text-[#6a6f73] hover:text-[#1c1d1f]'"
                     x-on:click="tab = '{{ $key }}'"
                     :aria-selected="tab === '{{ $key }}'"
                 >
-                    {{ $label }}
+                    @if($key === 'comments')
+                        <span id="tab-comments-button-text">{{ $label }}</span>
+                    @else
+                        {{ $label }}
+                    @endif
                 </button>
             @endforeach
         </div>

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\Review;
 use App\Models\User;
@@ -76,124 +77,92 @@ class StudentReviewSeeder extends Seeder
     public function run(): void
     {
         echo "\n=========================================================================\n";
-        echo "   BẮT ĐẦU NẠP ĐÁNH GIÁ ĐỦ TỪ 1 ĐẾN 5 SAO & BÌNH LUẬN BÀI HỌC (2025-2026)\n";
+        echo "   BẮT ĐẦU NẠP 250 ĐÁNH GIÁ ĐỦ TỪ 1 ĐẾN 5 SAO & BÌNH LUẬN BÀI HỌC (2025-2026)\n";
         echo "=========================================================================\n\n";
 
-        $courses = Course::where('status', 'published')->get(['id', 'instructor_id', 'title']);
-        if ($courses->isEmpty()) {
-            $courses = Course::all(['id', 'instructor_id', 'title']);
-        }
         $lessons = Lesson::all(['id', 'course_id', 'title']);
 
-        $studentIds = User::where('role', 'student')->limit(3000)->pluck('id')->all();
-        if (empty($studentIds)) {
-            $studentIds = User::limit(500)->pluck('id')->all();
-        }
-        $totalStudents = count($studentIds);
+        // Lấy danh sách Enrollment thực tế để tạo review (đảm bảo 1 student chỉ review course họ đã học & không trùng lặp)
+        $validEnrollments = Enrollment::with('course:id,instructor_id')
+            ->get(['id', 'user_id', 'course_id', 'created_at'])
+            ->unique(fn($e) => $e->user_id . '_' . $e->course_id)
+            ->values();
 
-        // Timeline 20 tháng
-        $monthTimeline = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $monthTimeline[] = ['year' => 2025, 'month' => $m];
-        }
-        for ($m = 1; $m <= 8; $m++) {
-            $monthTimeline[] = ['year' => 2026, 'month' => $m];
-        }
-        $totalMonths = count($monthTimeline);
+        // Chọn ~250 enrollments ngẫu nhiên để đánh giá
+        $targetReviewsCount = min(250, $validEnrollments->count());
+        $selectedEnrollments = $validEnrollments->shuffle()->take($targetReviewsCount)->values();
 
         $reviewsBatch = [];
         $starStats = [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0];
-        $reviewCounter = 0;
 
-        foreach ($courses as $cIdx => $course) {
-            $instructorId = $course->instructor_id ?? 1;
-            // Mỗi khóa học có từ 25 đến 40 đánh giá
-            $numReviews = rand(25, 40);
+        foreach ($selectedEnrollments as $idx => $enrollment) {
+            $courseId = $enrollment->course_id;
+            $instructorId = $enrollment->course->instructor_id ?? 1;
+            $userId = $enrollment->user_id;
 
-            for ($r = 1; $r <= $numReviews; $r++) {
-                $reviewCounter++;
-                $mSlot = $monthTimeline[($reviewCounter * 3) % $totalMonths];
-                $year = $mSlot['year'];
-                $month = $mSlot['month'];
-                $day = rand(1, 28);
-                $hour = rand(8, 22);
-                $minute = rand(0, 59);
-                $second = rand(0, 59);
+            $enrolledAt = Carbon::parse($enrollment->created_at ?? now());
+            $reviewCarbon = $enrolledAt->copy()->addDays(rand(2, 25));
+            $createdAt = $reviewCarbon->format('Y-m-d H:i:s');
 
-                $createdAt = sprintf('%04d-%02d-%02d %02d:%02d:%02d', $year, $month, $day, $hour, $minute, $second);
-                $createdCarbon = Carbon::create($year, $month, $day, $hour, $minute, $second);
-                $userId = $studentIds[($reviewCounter * 7 + $r) % $totalStudents];
-
-                // Phân bổ tỷ lệ các mức sao:
-                // 5 Sao: ~58%
-                // 4 Sao: ~24%
-                // 3 Sao: ~10%
-                // 2 Sao: ~5%
-                // 1 Sao: ~3%
-                $randPercent = rand(1, 100);
-                if ($randPercent <= 58) {
-                    $rating = 5;
-                    $comment = $this->reviews5Stars[($reviewCounter + $r) % count($this->reviews5Stars)];
-                    $instructorReply = null;
-                    $repliedAt = null;
-                    $repliedBy = null;
-                } elseif ($randPercent <= 82) {
-                    $rating = 4;
-                    $comment = $this->reviews4Stars[($reviewCounter + $r) % count($this->reviews4Stars)];
-                    $instructorReply = null;
-                    $repliedAt = null;
-                    $repliedBy = null;
-                } elseif ($randPercent <= 92) {
-                    $rating = 3;
-                    $comment = $this->reviews3Stars[($reviewCounter + $r) % count($this->reviews3Stars)];
-                    // Có phản hồi từ giảng viên cho 50% đánh giá 3 sao
-                    if ($r % 2 === 0) {
-                        $instructorReply = $this->instructorReplies[($reviewCounter + $r) % count($this->instructorReplies)];
-                        $repliedAt = $createdCarbon->copy()->addHours(rand(2, 24))->format('Y-m-d H:i:s');
-                        $repliedBy = $instructorId;
-                    } else {
-                        $instructorReply = null;
-                        $repliedAt = null;
-                        $repliedBy = null;
-                    }
-                } elseif ($randPercent <= 97) {
-                    $rating = 2;
-                    $comment = $this->reviews2Stars[($reviewCounter + $r) % count($this->reviews2Stars)];
-                    // Có phản hồi từ giảng viên
-                    $instructorReply = $this->instructorReplies[($reviewCounter + $r) % count($this->instructorReplies)];
-                    $repliedAt = $createdCarbon->copy()->addHours(rand(1, 12))->format('Y-m-d H:i:s');
+            $randPercent = rand(1, 100);
+            if ($randPercent <= 60) {
+                $rating = 5;
+                $comment = $this->reviews5Stars[$idx % count($this->reviews5Stars)];
+                $instructorReply = null;
+                $repliedAt = null;
+                $repliedBy = null;
+            } elseif ($randPercent <= 85) {
+                $rating = 4;
+                $comment = $this->reviews4Stars[$idx % count($this->reviews4Stars)];
+                $instructorReply = null;
+                $repliedAt = null;
+                $repliedBy = null;
+            } elseif ($randPercent <= 94) {
+                $rating = 3;
+                $comment = $this->reviews3Stars[$idx % count($this->reviews3Stars)];
+                if ($idx % 2 === 0) {
+                    $instructorReply = $this->instructorReplies[$idx % count($this->instructorReplies)];
+                    $repliedAt = $reviewCarbon->copy()->addHours(rand(2, 24))->format('Y-m-d H:i:s');
                     $repliedBy = $instructorId;
                 } else {
-                    $rating = 1;
-                    $comment = $this->reviews1Star[($reviewCounter + $r) % count($this->reviews1Star)];
-                    // Có phản hồi từ giảng viên
-                    $instructorReply = $this->instructorReplies[($reviewCounter + $r) % count($this->instructorReplies)];
-                    $repliedAt = $createdCarbon->copy()->addHours(rand(1, 8))->format('Y-m-d H:i:s');
-                    $repliedBy = $instructorId;
+                    $instructorReply = null;
+                    $repliedAt = null;
+                    $repliedBy = null;
                 }
-
-                $starStats[$rating]++;
-                $helpfulCount = ($rating >= 4) ? rand(3, 45) : rand(0, 8);
-
-                $reviewsBatch[] = [
-                    'user_id' => $userId,
-                    'course_id' => $course->id,
-                    'rating' => $rating,
-                    'comment' => $comment,
-                    'status' => 'visible',
-                    'helpful_count' => $helpfulCount,
-                    'instructor_reply' => $instructorReply,
-                    'replied_by' => $repliedBy,
-                    'replied_at' => $repliedAt,
-                    'verified_purchase' => true,
-                    'is_hidden' => false,
-                    'created_at' => $createdAt,
-                    'updated_at' => $repliedAt ?? $createdAt,
-                ];
+            } elseif ($randPercent <= 98) {
+                $rating = 2;
+                $comment = $this->reviews2Stars[$idx % count($this->reviews2Stars)];
+                $instructorReply = $this->instructorReplies[$idx % count($this->instructorReplies)];
+                $repliedAt = $reviewCarbon->copy()->addHours(rand(1, 12))->format('Y-m-d H:i:s');
+                $repliedBy = $instructorId;
+            } else {
+                $rating = 1;
+                $comment = $this->reviews1Star[$idx % count($this->reviews1Star)];
+                $instructorReply = $this->instructorReplies[$idx % count($this->instructorReplies)];
+                $repliedAt = $reviewCarbon->copy()->addHours(rand(1, 8))->format('Y-m-d H:i:s');
+                $repliedBy = $instructorId;
             }
+
+            $starStats[$rating]++;
+            $helpfulCount = ($rating >= 4) ? rand(3, 45) : rand(0, 8);
+
+            $reviewsBatch[] = [
+                'user_id' => $userId,
+                'course_id' => $courseId,
+                'rating' => $rating,
+                'comment' => $comment,
+                'status' => 'visible',
+                'helpful_count' => $helpfulCount,
+                'instructor_reply' => $instructorReply,
+                'replied_by' => $repliedBy,
+                'replied_at' => $repliedAt,
+                'verified_purchase' => true,
+                'is_hidden' => false,
+                'created_at' => $createdAt,
+                'updated_at' => $repliedAt ?? $createdAt,
+            ];
         }
 
-        // Chèn reviews vào Database
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('reviews')->truncate();
         foreach (array_chunk($reviewsBatch, 500) as $chunk) {
@@ -201,21 +170,16 @@ class StudentReviewSeeder extends Seeder
         }
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // 2. Nạp bình luận bài học (Lesson Comments)
+        // Nạp bình luận bài học (Lesson Comments ~ 150 bình luận)
+        $studentIds = User::where('role', 'student')->pluck('id')->all();
+        $totalStudents = count($studentIds) ?: 1;
         $commentsBatch = [];
         $commentCount = 0;
-        foreach ($lessons->take(200) as $lIdx => $lesson) {
-            $numComments = rand(2, 6);
+        foreach ($lessons->take(80) as $lIdx => $lesson) {
+            $numComments = rand(1, 3);
             for ($c = 0; $c < $numComments; $c++) {
-                $mSlot = $monthTimeline[($commentCount * 2) % $totalMonths];
-                $year = $mSlot['year'];
-                $month = $mSlot['month'];
-                $day = rand(1, 28);
-                $hour = rand(8, 22);
-                $minute = rand(0, 59);
-
-                $createdAt = sprintf('%04d-%02d-%02d %02d:%02d:%02d', $year, $month, $day, $hour, $minute, 0);
-                $userId = $studentIds[($commentCount * 5 + $c) % $totalStudents];
+                $createdAt = sprintf('2026-%02d-%02d %02d:%02d:%02d', rand(1, 8), rand(1, 28), rand(8, 22), rand(0, 59), 0);
+                $userId = $studentIds[($commentCount * 3 + $c) % $totalStudents];
                 $content = $this->lessonComments[($commentCount + $c) % count($this->lessonComments)];
 
                 $commentsBatch[] = [
@@ -247,11 +211,11 @@ class StudentReviewSeeder extends Seeder
         echo "   • Tổng số Đánh giá (Reviews): " . number_format($totalReviews) . " đánh giá\n";
         echo "   • Điểm đánh giá trung bình:   " . $avgScore . " / 5.0 ⭐\n";
         echo "   • Phân bổ theo mức sao:\n";
-        echo "      ★★★★★ 5 Sao: " . number_format($starStats[5]) . " (" . round(($starStats[5]/$totalReviews)*100, 1) . "%)\n";
-        echo "      ★★★★☆ 4 Sao: " . number_format($starStats[4]) . " (" . round(($starStats[4]/$totalReviews)*100, 1) . "%)\n";
-        echo "      ★★★☆☆ 3 Sao: " . number_format($starStats[3]) . " (" . round(($starStats[3]/$totalReviews)*100, 1) . "%)\n";
-        echo "      ★★☆☆☆ 2 Sao: " . number_format($starStats[2]) . " (" . round(($starStats[2]/$totalReviews)*100, 1) . "%)\n";
-        echo "      ★☆☆☆☆ 1 Sao: " . number_format($starStats[1]) . " (" . round(($starStats[1]/$totalReviews)*100, 1) . "%)\n";
+        echo "      ★★★★★ 5 Sao: " . number_format($starStats[5]) . "\n";
+        echo "      ★★★★☆ 4 Sao: " . number_format($starStats[4]) . "\n";
+        echo "      ★★★☆☆ 3 Sao: " . number_format($starStats[3]) . "\n";
+        echo "      ★★☆☆☆ 2 Sao: " . number_format($starStats[2]) . "\n";
+        echo "      ★☆☆☆☆ 1 Sao: " . number_format($starStats[1]) . "\n";
         echo "   • Tổng số Bình luận bài học:  " . number_format($commentCount) . " bình luận\n";
         echo "=========================================================================\n\n";
     }

@@ -173,6 +173,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('/discussion-replies/{reply}/recall', [DiscussionController::class, 'recallReply'])->name('discussions.replies.recall');
     Route::delete('/discussion-replies/{reply}', [DiscussionController::class, 'destroyReply'])->name('discussions.replies.destroy');
     Route::post('/discussion-replies/{reply}/toggle-helpful', [DiscussionController::class, 'toggleHelpful'])->name('discussions.replies.toggle-helpful');
+    Route::get('/lessons/{lesson}/comments', [LessonCommentController::class, 'index'])->name('lessons.comments.index');
     Route::post('/lessons/{lesson}/comments', [LessonCommentController::class, 'store'])->name('lessons.comments.store');
     Route::put('/comments/{comment}', [LessonCommentController::class, 'update'])->name('comments.update');
     Route::delete('/comments/{comment}', [LessonCommentController::class, 'destroy'])->name('comments.destroy');

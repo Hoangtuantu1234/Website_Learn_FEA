@@ -35,6 +35,7 @@ use App\Services\InstructorCourseCategoryAccess;
 use App\Services\NotificationService;
 use App\Services\QuizAttemptService;
 use App\Services\QuizService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -123,7 +124,18 @@ class CourseController extends Controller
 
         $totalLessons = $course->lessons_count ?: $curriculumSections->sum(fn ($section) => $section->lessons->count());
 
-        return view('instructor.courses.show', compact('course', 'curriculumSections', 'totalLessons'));
+        $courseIncome = (float) OrderItem::query()
+            ->where('course_id', $course->id)
+            ->whereHas('order', fn (Builder $q) => $q->where('status', 'paid'))
+            ->sum('instructor_earning');
+
+        $studentCount = Enrollment::query()
+            ->where('course_id', $course->id)
+            ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
+            ->distinct()
+            ->count('user_id');
+
+        return view('instructor.courses.show', compact('course', 'curriculumSections', 'totalLessons', 'courseIncome', 'studentCount'));
     }
 
     public function edit(Course $course): View

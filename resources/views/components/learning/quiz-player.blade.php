@@ -212,21 +212,24 @@
                         <button type="button" id="close-quiz-request-btn" class="text-slate-400 hover:text-white cursor-pointer text-lg font-bold">&times;</button>
                     </div>
 
-                    <form id="quiz-request-attempt-form" action="{{ $quizContext['request_attempt_url'] }}" method="POST" class="mt-4 space-y-4">
+                    <form id="quiz-request-attempt-form" action="{{ $quizContext['request_attempt_url'] }}" method="POST" novalidate class="mt-4 space-y-4">
                         @csrf
                         <div class="rounded-xl bg-white/5 p-3.5 border border-white/10 text-xs space-y-1.5 text-slate-300">
                             <p><span class="text-slate-400">Khóa học:</span> <strong class="text-white">{{ $lesson->course?->title }}</strong></p>
                             <p><span class="text-slate-400">Bài Quiz:</span> <strong class="text-white">{{ $quizContext['title'] }}</strong></p>
                             <p><span class="text-slate-400">Học viên:</span> <strong class="text-white">{{ $quizContext['user_info']['name'] ?? auth()->user()?->name }}</strong></p>
                             <p><span class="text-slate-400">Số lượt đã sử dụng:</span> <strong class="text-amber-400">{{ $quizContext['attempts_count'] }}/{{ $quizContext['max_attempts'] }} lượt</strong></p>
+                            @if(($quizContext['next_request_number'] ?? 1) > 1)
+                                <p><span class="text-slate-400">Yêu cầu lần:</span> <strong class="text-amber-400">Lần {{ $quizContext['next_request_number'] }}</strong></p>
+                            @endif
                         </div>
 
                         <div>
                             <label for="quiz-request-reason" class="block text-xs font-semibold uppercase text-slate-300 mb-1.5">
-                                Lý do xin cấp lại lượt <span class="text-rose-400">*</span>
+                                Lý do xin cấp lại <span class="text-rose-400">*</span>
                             </label>
-                            <textarea name="reason" id="quiz-request-reason" rows="3" required minlength="5" maxlength="1000" class="w-full rounded-xl border border-white/20 bg-slate-950 p-3 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400" placeholder="Ví dụ: Em bị gián đoạn đường truyền mạng khi làm bài, em xin phép giảng viên cấp thêm lượt..."></textarea>
-                            <p id="quiz-request-error" class="text-xs text-rose-400 mt-1 hidden"></p>
+                            <textarea name="reason" id="quiz-request-reason" rows="3" maxlength="1000" class="w-full rounded-xl border border-white/20 bg-slate-950 p-3 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 transition" placeholder="Ví dụ: Em bị gián đoạn đường truyền mạng khi làm bài, em xin phép giảng viên cấp thêm lượt..."></textarea>
+                            <p id="quiz-request-error" class="text-xs text-rose-400 mt-1.5 hidden"></p>
                         </div>
 
                         <div class="flex items-center justify-end gap-3 pt-2">
@@ -242,6 +245,46 @@
             </div>
         </div>
     @endif
+
+    {{-- Modal Xác nhận nộp bài khi còn câu chưa làm --}}
+    <div id="quiz-confirm-submit-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-modal="true">
+        <div class="flex min-h-screen items-center justify-center p-4 text-center">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity" id="quiz-confirm-submit-backdrop"></div>
+
+            <div class="relative w-full max-w-md transform overflow-hidden rounded-2xl bg-slate-900 border border-white/20 p-6 text-left shadow-2xl transition-all z-10 text-white">
+                <div class="flex items-center gap-3 pb-3 border-b border-white/10">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Xác nhận nộp bài</h3>
+                        <p class="text-xs text-slate-400">Kiểm tra lại câu hỏi trước khi nộp</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    <p class="text-sm text-slate-300 leading-relaxed" id="quiz-confirm-submit-message">
+                        Bạn vẫn còn câu hỏi chưa trả lời. Bạn có chắc chắn muốn nộp bài không?
+                    </p>
+                    <div class="rounded-xl bg-white/5 p-3 border border-white/10 text-xs text-amber-300 flex items-center gap-2">
+                        <svg class="h-4 w-4 shrink-0 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>Các câu bỏ qua sẽ không được tính điểm.</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-5">
+                    <button type="button" id="quiz-confirm-submit-cancel" class="rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-white/10 transition cursor-pointer">
+                        Làm tiếp
+                    </button>
+                    <button type="button" id="quiz-confirm-submit-ok" class="rounded-xl bg-[#0056D2] px-5 py-2 text-xs font-bold text-white hover:bg-[#0046B8] transition cursor-pointer shadow">
+                        Xác nhận nộp bài
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -259,7 +302,34 @@
             const warning = panel.querySelector('[data-quiz-security-warning]');
             const watermark = panel.querySelector('[data-quiz-watermark]');
             let active = Boolean(context.attempt_id);
+            let isConfirmingOrSubmitting = false;
             let lastReportedAt = 0;
+
+            const deactivateSecurity = () => {
+                active = false;
+                isConfirmingOrSubmitting = true;
+                if (warning) {
+                    warning.textContent = '';
+                    warning.classList.add('hidden');
+                }
+            };
+
+            window.addEventListener('quiz:deactivate', deactivateSecurity);
+            window.addEventListener('quiz:submitting', () => {
+                isConfirmingOrSubmitting = true;
+                if (warning) warning.classList.add('hidden');
+            });
+
+            // Tự động tắt cảnh báo bảo mật khi màn hình kết quả hoặc thông báo vi phạm hiển thị
+            const resultEl = panel.querySelector('[data-quiz-result]');
+            if (resultEl) {
+                const observer = new MutationObserver(() => {
+                    if (!resultEl.hidden) {
+                        deactivateSecurity();
+                    }
+                });
+                observer.observe(resultEl, { attributes: true, attributeFilter: ['hidden'] });
+            }
 
             if (active) {
                 watermark?.classList.remove('hidden');
@@ -268,13 +338,14 @@
 
             panel.querySelector('[data-quiz-start]')?.addEventListener('click', async () => {
                 active = true;
+                isConfirmingOrSubmitting = false;
                 watermark?.classList.remove('hidden');
                 watermark?.classList.add('flex');
                 try { await panel.requestFullscreen?.(); } catch (_) {}
             });
 
             const report = async (message) => {
-                if (!active || Date.now() - lastReportedAt < 1500) return;
+                if (!active || isConfirmingOrSubmitting || Date.now() - lastReportedAt < 1500) return;
                 lastReportedAt = Date.now();
                 if (warning) {
                     warning.textContent = message;
@@ -288,9 +359,22 @@
                 }
             };
 
-            document.addEventListener('visibilitychange', () => document.hidden && report('Đã ghi nhận việc rời khỏi màn hình làm quiz.'));
-            window.addEventListener('blur', () => report('Đã ghi nhận việc chuyển sang cửa sổ khác.'));
-            document.addEventListener('fullscreenchange', () => active && !document.fullscreenElement && report('Bạn đã thoát chế độ toàn màn hình.'));
+            document.addEventListener('visibilitychange', () => {
+                if (active && !isConfirmingOrSubmitting && (document.hidden || document.visibilityState === 'hidden')) {
+                    report('Đã ghi nhận việc rời khỏi màn hình làm quiz.');
+                }
+            });
+
+            window.addEventListener('blur', () => {
+                if (!active || isConfirmingOrSubmitting) return;
+                setTimeout(() => {
+                    if (active && !isConfirmingOrSubmitting && (document.hidden || document.visibilityState === 'hidden')) {
+                        report('Đã ghi nhận việc chuyển sang cửa sổ khác.');
+                    }
+                }, 400);
+            });
+
+            document.addEventListener('fullscreenchange', () => active && !isConfirmingOrSubmitting && !document.fullscreenElement && report('Bạn đã thoát chế độ toàn màn hình.'));
             panel.addEventListener('contextmenu', event => active && event.preventDefault());
             panel.addEventListener('copy', event => active && event.preventDefault());
 
@@ -301,13 +385,36 @@
             const cancelBtn = document.getElementById('cancel-quiz-request-btn');
             const backdrop = document.getElementById('quiz-request-attempt-backdrop');
             const reqForm = document.getElementById('quiz-request-attempt-form');
+            const reasonInput = document.getElementById('quiz-request-reason');
             const errorEl = document.getElementById('quiz-request-error');
             const submitBtn = document.getElementById('submit-quiz-request-btn');
 
-            const closeModal = () => modal?.classList.add('hidden');
+            const clearError = () => {
+                if (errorEl) {
+                    errorEl.textContent = '';
+                    errorEl.classList.add('hidden');
+                }
+                reasonInput?.classList.remove('!border-rose-500', 'focus:!border-rose-500', 'focus:!ring-rose-500');
+            };
+
+            const showError = (msg) => {
+                if (errorEl) {
+                    errorEl.textContent = msg;
+                    errorEl.classList.remove('hidden');
+                }
+                reasonInput?.classList.add('!border-rose-500', 'focus:!border-rose-500', 'focus:!ring-rose-500');
+                reasonInput?.focus();
+            };
+
+            const closeModal = () => {
+                clearError();
+                modal?.classList.add('hidden');
+            };
+
             const openModal = () => {
-                if (errorEl) { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
+                clearError();
                 modal?.classList.remove('hidden');
+                setTimeout(() => reasonInput?.focus(), 100);
             };
 
             openBtn?.addEventListener('click', openModal);
@@ -315,14 +422,30 @@
             cancelBtn?.addEventListener('click', closeModal);
             backdrop?.addEventListener('click', closeModal);
 
+            reasonInput?.addEventListener('input', () => {
+                if (errorEl && !errorEl.classList.contains('hidden')) {
+                    clearError();
+                }
+            });
+
             reqForm?.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const reasonVal = document.getElementById('quiz-request-reason')?.value?.trim();
-                if (!reasonVal || reasonVal.length < 5) {
-                    if (errorEl) {
-                        errorEl.textContent = 'Vui lòng nhập lý do tối thiểu 5 ký tự.';
-                        errorEl.classList.remove('hidden');
-                    }
+                clearError();
+
+                const reasonVal = reasonInput?.value?.trim() || '';
+
+                if (!reasonVal) {
+                    showError('Vui lòng nhập lý do xin cấp lại.');
+                    return;
+                }
+
+                if (reasonVal.length < 5) {
+                    showError('Lý do xin cấp lại phải có ít nhất 5 ký tự.');
+                    return;
+                }
+
+                if (reasonVal.length > 1000) {
+                    showError('Lý do xin cấp lại không được vượt quá 1000 ký tự.');
                     return;
                 }
 
@@ -342,16 +465,14 @@
 
                     const data = await response.json();
                     if (!response.ok || !data.success) {
-                        throw new Error(data.message || 'Không thể gửi yêu cầu lúc này.');
+                        const errMsg = (data.errors && data.errors.reason && data.errors.reason[0]) || data.message || 'Không thể gửi yêu cầu lúc này.';
+                        throw new Error(errMsg);
                     }
 
                     alert('Đã gửi yêu cầu cấp lại lượt Quiz. Vui lòng chờ giảng viên xử lý.');
                     window.location.reload();
                 } catch (err) {
-                    if (errorEl) {
-                        errorEl.textContent = err.message || 'Có lỗi xảy ra, vui lòng thử lại.';
-                        errorEl.classList.remove('hidden');
-                    }
+                    showError(err.message || 'Có lỗi xảy ra, vui lòng thử lại.');
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Gửi yêu cầu';
                 }

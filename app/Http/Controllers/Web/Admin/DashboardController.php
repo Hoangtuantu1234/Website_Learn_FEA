@@ -19,16 +19,13 @@ class DashboardController extends Controller
 {
     public function index(Request $request): View
     {
-        $requestedPeriod = $request->string('period', '6')->toString();
-        $period = in_array($requestedPeriod, ['6', '12', 'all'], true)
-            ? ($requestedPeriod === 'all' ? 'all' : (int) $requestedPeriod)
-            : 6;
+        $currentYear = (int) now()->year;
+
         $categoryId = $request->integer('category_id') ?: null;
         $instructorId = $request->integer('instructor_id') ?: null;
         $status = in_array($request->string('status')->toString(), CourseStatus::values(), true)
             ? $request->string('status')->toString()
             : null;
-        $periodStart = $period === 'all' ? null : now()->startOfMonth()->subMonths($period - 1);
 
         $applyCourseFilters = static function (Builder $query) use ($categoryId, $instructorId, $status): void {
             $query
@@ -37,23 +34,45 @@ class DashboardController extends Controller
                 ->when($status, fn (Builder $q) => $q->where('status', $status));
         };
 
+        $earliestItemYear = OrderItem::query()
+            ->whereHas('order', fn (Builder $q) => $q->where('status', 'paid'))
+            ->whereHas('course', $applyCourseFilters)
+            ->min('order_items.created_at');
+
+        $minYear = $earliestItemYear ? (int) Carbon::parse($earliestItemYear)->year : $currentYear;
+        if ($minYear > $currentYear) {
+            $minYear = $currentYear;
+        }
+
+        $availableYears = range($currentYear, $minYear);
+
+        $rawYear = $request->input('year');
+        if ($request->has('year') && is_numeric($rawYear)) {
+            $year = (int) $rawYear;
+            if ($year < 1970 || $year > $currentYear + 1) {
+                $year = $currentYear;
+            }
+        } else {
+            $year = $currentYear;
+        }
+
         $courseQuery = Course::query();
         $applyCourseFilters($courseQuery);
 
         $enrollmentQuery = Enrollment::query()
-            ->when($periodStart, fn (Builder $q) => $q->where('created_at', '>=', $periodStart))
+            ->whereYear('enrollments.created_at', $year)
             ->whereHas('course', $applyCourseFilters);
         $reviewQuery = Review::query()
             ->whereNull('parent_id')
             ->whereHas('course', $applyCourseFilters);
         $paidItemQuery = OrderItem::query()
-            ->when($periodStart, fn (Builder $q) => $q->where('created_at', '>=', $periodStart))
+            ->whereYear('order_items.created_at', $year)
             ->whereHas('order', fn (Builder $q) => $q->where('status', 'paid'))
             ->whereHas('course', $applyCourseFilters);
 
         $stats = [
-            'revenue' => (float) (clone $paidItemQuery)->sum('price'),
-            'orders' => (clone $paidItemQuery)->distinct()->count('order_id'),
+            'revenue' => (float) (clone $paidItemQuery)->sum('order_items.price'),
+            'orders' => (clone $paidItemQuery)->distinct()->count('order_items.order_id'),
             'courses' => (clone $courseQuery)->count(),
             'enrollments' => (clone $enrollmentQuery)->count(),
             'reviews' => (clone $reviewQuery)->count(),
@@ -62,34 +81,28 @@ class DashboardController extends Controller
             'students' => (clone $enrollmentQuery)->distinct()->count('user_id'),
         ];
 
-        $firstActivityAt = collect([
-            Enrollment::query()->whereHas('course', $applyCourseFilters)->min('created_at'),
-            OrderItem::query()
-                ->whereHas('order', fn (Builder $q) => $q->where('status', 'paid'))
-                ->whereHas('course', $applyCourseFilters)
-                ->min('created_at'),
-        ])->filter()->sort()->first();
-        $analyticsStart = $periodStart
-            ?? ($firstActivityAt ? Carbon::parse($firstActivityAt)->startOfMonth() : now()->startOfMonth());
-        $monthCount = (int) $analyticsStart->diffInMonths(now()->startOfMonth()) + 1;
+        $yearlyRevenueByMonth = OrderItem::query()
+            ->selectRaw('MONTH(order_items.created_at) as month, SUM(order_items.price) as total_revenue')
+            ->whereYear('order_items.created_at', $year)
+            ->whereHas('order', fn (Builder $q) => $q->where('status', 'paid'))
+            ->whereHas('course', $applyCourseFilters)
+            ->groupByRaw('MONTH(order_items.created_at)')
+            ->pluck('total_revenue', 'month');
 
-        $monthlyAnalytics = collect(range($monthCount - 1, 0))->map(function (int $monthsAgo) use ($applyCourseFilters): array {
-            $start = now()->startOfMonth()->subMonths($monthsAgo);
-            $end = $start->copy()->endOfMonth();
-            $items = OrderItem::query()
-                ->whereBetween('created_at', [$start, $end])
-                ->whereHas('order', fn (Builder $q) => $q->where('status', 'paid'))
-                ->whereHas('course', $applyCourseFilters);
+        $yearlyEnrollmentsByMonth = Enrollment::query()
+            ->selectRaw('MONTH(enrollments.created_at) as month, COUNT(*) as total_enrollments')
+            ->whereYear('enrollments.created_at', $year)
+            ->whereHas('course', $applyCourseFilters)
+            ->groupByRaw('MONTH(enrollments.created_at)')
+            ->pluck('total_enrollments', 'month');
 
+        $monthlyAnalytics = collect(range(1, 12))->map(function (int $m) use ($year, $yearlyRevenueByMonth, $yearlyEnrollmentsByMonth): array {
             return [
-                'label' => 'T'.$start->month,
-                'full_label' => $start->format('m/Y'),
-                'revenue' => (float) (clone $items)->sum('price'),
-                'orders' => (clone $items)->distinct()->count('order_id'),
-                'enrollments' => Enrollment::query()
-                    ->whereBetween('created_at', [$start, $end])
-                    ->whereHas('course', $applyCourseFilters)
-                    ->count(),
+                'label' => 'T'.$m,
+                'full_label' => sprintf('Tháng %d/%d', $m, $year),
+                'month' => $m,
+                'revenue' => (float) ($yearlyRevenueByMonth->get($m) ?? 0),
+                'enrollments' => (int) ($yearlyEnrollmentsByMonth->get($m) ?? 0),
             ];
         })->values();
 
@@ -109,10 +122,7 @@ class DashboardController extends Controller
         $topCourses = (clone $courseQuery)
             ->with(['category:id,name', 'instructor:id,name'])
             ->withCount([
-                'enrollments as period_enrollments_count' => fn (Builder $q) => $q->when(
-                    $periodStart,
-                    fn (Builder $enrollments) => $enrollments->where('created_at', '>=', $periodStart)
-                ),
+                'enrollments as period_enrollments_count' => fn (Builder $q) => $q->whereYear('enrollments.created_at', $year),
                 'reviews',
             ])
             ->withAvg('reviews', 'rating')
@@ -128,7 +138,8 @@ class DashboardController extends Controller
             'topCourses' => $topCourses,
             'categories' => Category::query()->where('status', true)->orderBy('name')->get(['id', 'name']),
             'instructors' => User::query()->where('role', 'instructor')->orderBy('name')->get(['id', 'name']),
-            'filters' => compact('period', 'categoryId', 'instructorId', 'status'),
+            'availableYears' => $availableYears,
+            'filters' => compact('year', 'categoryId', 'instructorId', 'status'),
         ]);
     }
 }

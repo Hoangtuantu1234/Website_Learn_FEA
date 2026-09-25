@@ -21,11 +21,9 @@
             </div>
             <div class="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <label class="block">
-                    <span class="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300">Khoảng thời gian</span>
-                    <select name="period" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
-                        <option value="6" @selected($filters['period'] === 6)>6 tháng gần nhất</option>
-                        <option value="12" @selected($filters['period'] === 12)>12 tháng gần nhất</option>
-                        <option value="all" @selected($filters['period'] === 'all')>Tất cả thời gian</option>
+                    <span class="mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300">Năm</span>
+                    <select name="year" class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                        @foreach($availableYears as $y)<option value="{{ $y }}" @selected($filters['year'] === $y)>Năm {{ $y }}</option>@endforeach
                     </select>
                 </label>
                 <label class="block">
@@ -60,7 +58,7 @@
     <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         @php
             $kpis = [
-                ['Doanh thu', number_format($stats['revenue'], 0, ',', '.').'đ', '₫', 'Trong kỳ đã chọn'],
+                ['Doanh thu', number_format($stats['revenue'], 0, ',', '.').'đ', '₫', 'Năm '.$filters['year']],
                 ['Đơn hàng', number_format($stats['orders']), '#', 'Đã thanh toán'],
                 ['Khóa học', number_format($stats['courses']), '▤', 'Theo bộ lọc'],
                 ['Học viên', number_format($stats['students']), '◉', number_format($stats['enrollments']).' lượt ghi danh'],
@@ -78,20 +76,29 @@
         @endforeach
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-12">
-        <article class="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-5">
-            <div class="mb-3"><h3 class="text-sm font-black text-slate-900 dark:text-white">Doanh thu và ghi danh theo tháng</h3><p class="mt-1 text-xs text-slate-400">{{ $filters['period'] === 'all' ? 'Xu hướng trong toàn bộ thời gian' : 'So sánh xu hướng trong '.$filters['period'].' tháng gần nhất' }}</p></div>
-            <div class="h-[285px]"><canvas id="adminTrendChart" role="img" aria-label="Biểu đồ doanh thu và ghi danh theo tháng"></canvas></div>
-        </article>
-        <article class="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-3">
-            <div class="mb-3"><h3 class="text-sm font-black text-slate-900 dark:text-white">Cơ cấu trạng thái</h3><p class="mt-1 text-xs text-slate-400">Phân bổ khóa học theo trạng thái</p></div>
-            <div class="h-[285px]"><canvas id="adminStatusChart" role="img" aria-label="Biểu đồ trạng thái khóa học"></canvas></div>
-        </article>
-        <article class="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-4">
-            <div class="mb-3"><h3 class="text-sm font-black text-slate-900 dark:text-white">Top khóa học nổi bật</h3><p class="mt-1 text-xs text-slate-400">Xếp hạng theo lượt ghi danh trong kỳ</p></div>
-            <div class="h-[285px]"><canvas id="adminTopCoursesChart" role="img" aria-label="Biểu đồ top khóa học"></canvas></div>
-        </article>
-    </section>
+    <!-- Hàng biểu đồ 1: Biểu đồ Doanh thu / Ghi danh theo thời gian -->
+    <article class="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="mb-3"><h3 class="text-sm font-black text-slate-900 dark:text-white">Doanh thu và ghi danh theo tháng</h3><p class="mt-1 text-xs text-slate-400">Xu hướng doanh thu và ghi danh theo 12 tháng năm {{ $filters['year'] }}</p></div>
+        <div class="h-[320px]"><canvas id="adminTrendChart" role="img" aria-label="Biểu đồ doanh thu và ghi danh theo tháng"></canvas></div>
+    </article>
+
+    <!-- Hàng biểu đồ 2: Biểu đồ Cơ cấu trạng thái -->
+    <article class="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="mb-3"><h3 class="text-sm font-black text-slate-900 dark:text-white">Cơ cấu trạng thái</h3><p class="mt-1 text-xs text-slate-400">Phân bổ khóa học theo trạng thái</p></div>
+        <div class="h-[300px]"><canvas id="adminStatusChart" role="img" aria-label="Biểu đồ trạng thái khóa học"></canvas></div>
+    </article>
+
+    <!-- Hàng biểu đồ 3: Biểu đồ Top khóa học -->
+    <article class="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+            <div>
+                <h3 class="text-sm font-black text-slate-900 dark:text-white">Top khóa học nổi bật</h3>
+                <p class="mt-1 text-xs text-slate-400">Xếp hạng theo lượt ghi danh trong kỳ</p>
+            </div>
+            <span class="inline-flex self-start sm:self-auto items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">Đơn vị: lượt ghi danh</span>
+        </div>
+        <div class="h-[320px]"><canvas id="adminTopCoursesChart" role="img" aria-label="Biểu đồ top khóa học"></canvas></div>
+    </article>
 
     <section class="grid gap-4 xl:grid-cols-12">
         <article class="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-4">
@@ -142,7 +149,26 @@ document.addEventListener('DOMContentLoaded', () => {
             { label: 'Doanh thu', data: @json($chartRevenue), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.12)', fill: true, tension: .35, pointRadius: 3, yAxisID: 'y' },
             { label: 'Ghi danh', data: @json($chartEnrollments), borderColor: '#06b6d4', backgroundColor: '#06b6d4', tension: .35, pointRadius: 3, yAxisID: 'y1' }
         ]},
-        options: { ...common, interaction: { mode: 'index', intersect: false }, scales: { x: { ticks: { color: text }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: text, callback: value => new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(value) + 'đ' }, grid: { color: grid } }, y1: { beginAtZero: true, position: 'right', ticks: { color: text, precision: 0 }, grid: { display: false } } } }
+        options: {
+            ...common,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { ticks: { color: text }, grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Doanh thu (VNĐ)', color: text, font: { size: 10, weight: 'bold' } },
+                    ticks: { color: text, callback: value => new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(value) + 'đ' },
+                    grid: { color: grid }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    title: { display: true, text: 'Lượt ghi danh', color: text, font: { size: 10, weight: 'bold' } },
+                    ticks: { color: text, precision: 0, callback: value => new Intl.NumberFormat('vi-VN').format(value) + ' lượt' },
+                    grid: { display: false }
+                }
+            }
+        }
     });
     new Chart(document.getElementById('adminStatusChart'), { type: 'doughnut', data: { labels: @json($statusLabels), datasets: [{ data: @json($statusValues), backgroundColor: @json($statusColors), borderWidth: 3, borderColor: dark ? '#0f172a' : '#fff' }] }, options: { ...common, cutout: '62%', plugins: { ...common.plugins, legend: { position: 'bottom', labels: { color: text, boxWidth: 9, usePointStyle: true, font: { size: 9 } } } } } });
     new Chart(document.getElementById('adminTopCoursesChart'), { type: 'bar', data: { labels: @json($topCourseLabels->take(5)), datasets: [{ label: 'Ghi danh', data: @json($topCourseValues->take(5)), backgroundColor: '#3b82f6', borderRadius: 5 }] }, options: { ...common, indexAxis: 'y', plugins: { ...common.plugins, legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { color: text, precision: 0 }, grid: { color: grid } }, y: { ticks: { color: text, font: { size: 10 } }, grid: { display: false } } } } });

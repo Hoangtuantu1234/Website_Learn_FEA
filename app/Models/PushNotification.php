@@ -65,6 +65,8 @@ class PushNotification extends Model
             'course_video_updated' => 'Cập nhật video',
             'study_group' => 'Nhóm học tập',
             'study_group_invitation' => 'Lời mời tham gia nhóm',
+            'quiz_attempt_granted' => 'Cấp lại lượt Quiz',
+            'quiz_attempt_rejected' => 'Từ chối cấp lại Quiz',
             default => 'Thông báo',
         };
     }
@@ -90,6 +92,8 @@ class PushNotification extends Model
             'course_video_updated' => 'bg-purple-100 text-purple-700',
             'study_group' => 'bg-blue-100 text-blue-700',
             'study_group_invitation' => 'bg-indigo-100 text-indigo-700',
+            'quiz_attempt_granted' => 'bg-emerald-100 text-emerald-700',
+            'quiz_attempt_rejected' => 'bg-rose-100 text-rose-700',
             default => 'bg-slate-100 text-slate-700',
         };
     }

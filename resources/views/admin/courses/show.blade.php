@@ -78,7 +78,7 @@
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Học viên</span>
-            <strong class="mt-2 block text-2xl font-bold text-slate-950">{{ number_format((int) $course->active_enrollments_count) }}</strong>
+            <strong class="mt-2 block text-2xl font-bold text-slate-950">{{ number_format((int) $studentCount) }}</strong>
         </div>
         <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Chương</span>

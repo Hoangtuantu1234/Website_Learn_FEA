@@ -13,7 +13,7 @@ class RevenueOrderSeeder extends Seeder
 {
     public function run(): void
     {
-        $targetTotalRevenue = 3582962000.00; // CHÍNH XÁC 3.582.962.000 VNĐ
+        $targetTotalRevenue = 320000000.00; // 320.000.000 VNĐ
 
         echo "\n=========================================================================\n";
         echo "   BẮT ĐẦU NẠP DOANH THU BIẾN ĐỘNG (T1/2025 - T8/2026)\n";
@@ -33,39 +33,37 @@ class RevenueOrderSeeder extends Seeder
         $courseList = $courses->all();
         $totalCourses = count($courseList);
 
-        $studentIds = User::where('role', 'student')->limit(3000)->pluck('id')->all();
+        $studentIds = User::where('role', 'student')->pluck('id')->all();
         if (empty($studentIds)) {
-            $studentIds = User::limit(500)->pluck('id')->all();
+            $studentIds = User::pluck('id')->all();
         }
         $totalStudents = count($studentIds);
 
-        // 20 tháng từ Tháng 01/2025 đến Tháng 08/2026
+        // 20 tháng từ Tháng 01/2025 đến Tháng 08/2026 (Tổng = 320.000.000 VNĐ)
         $monthlyTargetRevenue = [
-            // 2025 (12 tháng: từ 110tr đến 220tr)
-            ['year' => 2025, 'month' => 1,  'target' => 110000000],
-            ['year' => 2025, 'month' => 2,  'target' => 118000000],
-            ['year' => 2025, 'month' => 3,  'target' => 135000000],
-            ['year' => 2025, 'month' => 4,  'target' => 128000000],
-            ['year' => 2025, 'month' => 5,  'target' => 145000000],
-            ['year' => 2025, 'month' => 6,  'target' => 155000000],
-            ['year' => 2025, 'month' => 7,  'target' => 170000000],
-            ['year' => 2025, 'month' => 8,  'target' => 162000000],
-            ['year' => 2025, 'month' => 9,  'target' => 180000000],
-            ['year' => 2025, 'month' => 10, 'target' => 195000000],
-            ['year' => 2025, 'month' => 11, 'target' => 205000000],
-            ['year' => 2025, 'month' => 12, 'target' => 220000000],
-            // 2026 (8 tháng: từ 175tr đến 262tr)
-            ['year' => 2026, 'month' => 1,  'target' => 175000000],
-            ['year' => 2026, 'month' => 2,  'target' => 185000000],
-            ['year' => 2026, 'month' => 3,  'target' => 210000000],
-            ['year' => 2026, 'month' => 4,  'target' => 200000000],
-            ['year' => 2026, 'month' => 5,  'target' => 230000000],
-            ['year' => 2026, 'month' => 6,  'target' => 245000000],
-            ['year' => 2026, 'month' => 7,  'target' => 255000000],
-            ['year' => 2026, 'month' => 8,  'target' => 261962000],
+            ['year' => 2025, 'month' => 1,  'target' => 10000000],
+            ['year' => 2025, 'month' => 2,  'target' => 11000000],
+            ['year' => 2025, 'month' => 3,  'target' => 12000000],
+            ['year' => 2025, 'month' => 4,  'target' => 11500000],
+            ['year' => 2025, 'month' => 5,  'target' => 13000000],
+            ['year' => 2025, 'month' => 6,  'target' => 14000000],
+            ['year' => 2025, 'month' => 7,  'target' => 15000000],
+            ['year' => 2025, 'month' => 8,  'target' => 14500000],
+            ['year' => 2025, 'month' => 9,  'target' => 15500000],
+            ['year' => 2025, 'month' => 10, 'target' => 16000000],
+            ['year' => 2025, 'month' => 11, 'target' => 16500000],
+            ['year' => 2025, 'month' => 12, 'target' => 18000000],
+            ['year' => 2026, 'month' => 1,  'target' => 16500000],
+            ['year' => 2026, 'month' => 2,  'target' => 17500000],
+            ['year' => 2026, 'month' => 3,  'target' => 20000000],
+            ['year' => 2026, 'month' => 4,  'target' => 19000000],
+            ['year' => 2026, 'month' => 5,  'target' => 21000000],
+            ['year' => 2026, 'month' => 6,  'target' => 22000000],
+            ['year' => 2026, 'month' => 7,  'target' => 22500000],
+            ['year' => 2026, 'month' => 8,  'target' => 17000000],
         ];
 
-        // Tính mục tiêu tháng 8/2026
+        // Tính lại tháng 8/2026 để tổng doanh thu đạt đúng target (320 triệu VNĐ)
         $sumPrevious19Months = 0;
         for ($i = 0; $i < 19; $i++) {
             $sumPrevious19Months += $monthlyTargetRevenue[$i]['target'];
@@ -74,8 +72,8 @@ class RevenueOrderSeeder extends Seeder
 
         $currentTotalRevenue = 0.0;
         $orderCounter = 1;
-        $gateways = ['vnpay', 'momo', 'bank_transfer'];
-        $standardPrices = [399000, 499000, 599000, 699000, 799000, 890000, 990000, 1190000, 1490000, 1990000];
+        $gateways = ['momo', 'bank_transfer'];
+        $standardPrices = [399000, 499000, 599000, 699000, 799000, 890000, 990000];
 
         $ordersBatch = [];
         $itemsBatch = [];
@@ -88,7 +86,8 @@ class RevenueOrderSeeder extends Seeder
             $isLastMonth = ($mIdx === 19);
 
             $monthGeneratedRevenue = 0.0;
-            $monthOrderCount = rand(130, 200);
+            // Số đơn mỗi tháng từ 18 đến 23 đơn (Tổng 20 tháng ~ 400 đơn)
+            $monthOrderCount = rand(18, 23);
             $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
 
             for ($o = 1; $o <= $monthOrderCount; $o++) {
@@ -101,7 +100,7 @@ class RevenueOrderSeeder extends Seeder
                     $itemPrice = $monthTarget - $monthGeneratedRevenue;
                 } else {
                     $itemPrice = $standardPrices[rand(0, count($standardPrices) - 1)];
-                    if ($monthGeneratedRevenue + $itemPrice > $monthTarget - 300000) {
+                    if ($monthGeneratedRevenue + $itemPrice > $monthTarget - 200000) {
                         $itemPrice = max(199000, (int) round(($monthTarget - $monthGeneratedRevenue) / ($monthOrderCount - $o + 1)));
                     }
                 }
@@ -163,7 +162,7 @@ class RevenueOrderSeeder extends Seeder
                 }
             }
 
-            echo sprintf("   • Tháng %02d/%d: Doanh thu = %15s VNĐ (%3d đơn hàng)\n",
+            echo sprintf("   • Tháng %02d/%d: Doanh thu = %15s VNĐ (%2d đơn hàng)\n",
                 $month, $year, number_format($monthGeneratedRevenue), $monthOrderCount);
         }
 
@@ -190,7 +189,6 @@ class RevenueOrderSeeder extends Seeder
         echo "   • Tổng số đơn hàng: " . number_format($orderCounter - 1) . " đơn hàng\n";
         echo "   • TỔNG DOANH THU ĐẠT ĐƯỢC: " . number_format($finalRevenue) . " VNĐ\n";
         echo "   • Mục tiêu yêu cầu:       " . number_format($targetTotalRevenue) . " VNĐ\n";
-        echo "   • Sai lệch:               " . ($finalRevenue - $targetTotalRevenue) . " VNĐ (Chuẩn 100%)\n";
         echo "=========================================================================\n\n";
     }
 }

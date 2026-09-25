@@ -429,6 +429,7 @@ class LearningPlayerService
 
         $latestAttemptRequest = $user ? $attemptService->latestAttemptRequest($quiz, $user) : null;
         $hasPendingRequest = $latestAttemptRequest ? $latestAttemptRequest->isPending() : false;
+        $previousRequestsCount = $user ? \App\Models\QuizAttemptRequest::query()->where('quiz_id', $quiz->id)->where('user_id', $user->id)->count() : 0;
 
         return [
             'id' => $quiz->id,
@@ -445,6 +446,8 @@ class LearningPlayerService
                 && ($availability['has_remaining_attempts'] ?? false),
             'has_pending_request' => $hasPendingRequest,
             'can_request_attempt' => $attemptLimitReached && ! $hasPendingRequest,
+            'next_request_number' => $previousRequestsCount + 1,
+            'previous_requests_count' => $previousRequestsCount,
             'request_attempt_url' => route('courses.lessons.quiz.request-attempt', [$course, $lesson]),
             'latest_attempt_request' => $latestAttemptRequest ? [
                 'id' => $latestAttemptRequest->id,

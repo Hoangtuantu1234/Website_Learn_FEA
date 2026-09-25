@@ -97,7 +97,7 @@
                 </a>
                 <a href="{{ route('instructor.courses.students', $course) }}" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                    Danh sách học viên ({{ number_format($course->enrollments_count) }})
+                    Danh sách học viên ({{ number_format($studentCount) }})
                 </a>
                 @if($course->isPublished())
                     <a href="{{ route('courses.show', $course->slug) }}" target="_blank" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100">
@@ -110,10 +110,14 @@
     </section>
 
     {{-- Stats Cards --}}
-    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Học viên ghi danh</span>
-            <strong class="mt-2 block text-2xl font-extrabold text-slate-950">{{ number_format($course->enrollments_count) }}</strong>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Học viên</span>
+            <strong class="mt-2 block text-2xl font-extrabold text-slate-950">{{ number_format($studentCount) }}</strong>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Thu nhập</span>
+            <strong class="mt-2 block text-2xl font-extrabold text-emerald-600">{{ number_format($courseIncome, 0, ',', '.') }}đ</strong>
         </div>
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Số chương</span>
@@ -129,7 +133,7 @@
         </div>
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Giá bán hiệu lực</span>
-            <strong class="mt-2 block text-2xl font-extrabold text-emerald-600">{{ $formatPrice($effectivePrice) }}</strong>
+            <strong class="mt-2 block text-2xl font-extrabold text-slate-950">{{ $formatPrice($effectivePrice) }}</strong>
         </div>
     </section>
 
@@ -202,17 +206,31 @@
             </div>
 
             @if($course->courseReviews && $course->courseReviews->isNotEmpty())
+                @php
+                    $reviewBadges = [
+                        \App\Enums\CourseReviewStatus::Approved->value => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                        \App\Enums\CourseReviewStatus::Rejected->value => 'bg-rose-50 text-rose-700 border-rose-200',
+                        \App\Enums\CourseReviewStatus::Pending->value => 'bg-amber-50 text-amber-700 border-amber-200',
+                    ];
+                @endphp
                 <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h3 class="text-base font-bold text-slate-950">Lịch sử kiểm duyệt</h3>
                     <div class="mt-3 divide-y divide-slate-100">
                         @foreach($course->courseReviews->take(3) as $review)
+                            @php
+                                $statusVal = $review->status instanceof \App\Enums\CourseReviewStatus ? $review->status->value : (string) $review->status;
+                                $badgeClass = $reviewBadges[$statusVal] ?? 'bg-slate-50 text-slate-700 border-slate-200';
+                            @endphp
                             <div class="py-3 text-xs">
                                 <div class="flex items-center justify-between">
-                                    <span class="font-semibold text-slate-800">Lần {{ $review->submission_number ?? 1 }}: {{ ucfirst($review->status) }}</span>
-                                    <span class="text-slate-400">{{ $review->created_at?->format('d/m/Y') }}</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-semibold text-slate-800">Lần {{ $review->submission_number ?? 1 }}:</span>
+                                        <span class="rounded-full border px-2 py-0.5 text-[11px] font-bold {{ $badgeClass }}">{{ $review->statusLabel() }}</span>
+                                    </div>
+                                    <span class="text-slate-400">{{ ($review->reviewed_at ?? $review->submitted_at ?? $review->created_at)?->format('d/m/Y') }}</span>
                                 </div>
-                                @if($review->feedback)
-                                    <p class="mt-1 text-slate-600 italic">"{{ $review->feedback }}"</p>
+                                @if($review->comment ?? $review->feedback)
+                                    <p class="mt-1 text-slate-600 italic">"{{ $review->comment ?? $review->feedback }}"</p>
                                 @endif
                             </div>
                         @endforeach

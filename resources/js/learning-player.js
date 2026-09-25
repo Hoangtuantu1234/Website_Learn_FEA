@@ -714,14 +714,62 @@ function initQuizPlayer() {
         }
     };
 
+    const showConfirmSubmitModal = (unansweredCount) => {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('quiz-confirm-submit-modal');
+            const msgEl = document.getElementById('quiz-confirm-submit-message');
+            const okBtn = document.getElementById('quiz-confirm-submit-ok');
+            const cancelBtn = document.getElementById('quiz-confirm-submit-cancel');
+            const backdrop = document.getElementById('quiz-confirm-submit-backdrop');
+
+            window.dispatchEvent(new CustomEvent('quiz:submitting'));
+
+            if (!modal || !okBtn || !cancelBtn) {
+                window.dispatchEvent(new CustomEvent('quiz:deactivate'));
+                const ok = window.confirm(`Bạn còn ${unansweredCount} câu chưa trả lời. Bạn có chắc muốn nộp bài?`);
+                resolve(ok);
+                return;
+            }
+
+            if (msgEl) {
+                msgEl.textContent = `Bạn còn ${unansweredCount} câu hỏi chưa trả lời. Bạn có chắc chắn muốn nộp bài kiểm tra ngay không?`;
+            }
+
+            modal.classList.remove('hidden');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                backdrop?.removeEventListener('click', onCancel);
+            };
+
+            const onOk = () => {
+                cleanup();
+                window.dispatchEvent(new CustomEvent('quiz:deactivate'));
+                resolve(true);
+            };
+
+            const onCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+            backdrop?.addEventListener('click', onCancel);
+        });
+    };
+
     const submitQuiz = async (auto = false) => {
         const unanswered = quiz.questions.filter((q) => !answers[q.id]?.length);
         if (!auto && unanswered.length > 0) {
-            const ok = window.confirm(`Bạn còn ${unanswered.length} câu chưa trả lời. Bạn có chắc muốn nộp bài?`);
+            const ok = await showConfirmSubmitModal(unanswered.length);
             if (!ok) return;
         }
 
         isQuizActive = false;
+        window.dispatchEvent(new CustomEvent('quiz:deactivate'));
         nextBtn.disabled = true;
         nextBtn.textContent = 'Đang nộp bài...';
         prevBtn.disabled = true;
@@ -778,6 +826,11 @@ function initQuizPlayer() {
     };
 
     const renderQuizResult = (data) => {
+        const secWarning = root.querySelector('[data-quiz-security-warning]');
+        if (secWarning) {
+            secWarning.textContent = '';
+            secWarning.classList.add('hidden');
+        }
         const attempt = data.attempt;
         const passed = attempt.passed;
         const hasExcludedQuestion = data.graded?.questions?.some((question) => question.is_excluded) ?? false;

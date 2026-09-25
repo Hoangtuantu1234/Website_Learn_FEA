@@ -73,13 +73,13 @@
                 <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#161615] sm:p-6">
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <span class="rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ ($question['is_excluded'] || $question['is_unanswered']) ? 'bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-500/30' : ($question['is_correct'] ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30' : 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/30') }}">{{ $question['is_excluded'] ? 'Câu hỏi đã bị hủy — không tính điểm' : ($question['is_unanswered'] ? 'Chưa trả lời' : ($question['is_correct'] ? 'Dung' : 'Sai')) }}</span>
-                            <h2 class="mt-3 text-base font-extrabold text-slate-950 dark:text-white">Cau {{ $question['number'] }}. <span data-math-content>{{ $question['question'] }}</span></h2>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ ($question['is_excluded'] || $question['is_unanswered']) ? 'bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-500/30' : ($question['is_correct'] ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30' : 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/30') }}">{{ $question['is_excluded'] ? 'Câu hỏi đã bị hủy — không tính điểm' : ($question['is_unanswered'] ? 'Chưa trả lời' : ($question['is_correct'] ? 'Đúng' : 'Sai')) }}</span>
+                            <h2 class="mt-3 text-base font-extrabold text-slate-950 dark:text-white">Câu {{ $question['number'] }}. <span data-math-content>{{ $question['question'] }}</span></h2>
                             @if($question['image_url'] ?? null)
                                 <img src="{{ $question['image_url'] }}" alt="Minh họa câu hỏi" class="mt-3 max-h-72 w-full rounded-lg object-contain">
                             @endif
                         </div>
-                        <span class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ $question['is_excluded'] ? 'Không tính điểm' : $question['points'].' diem' }}</span>
+                        <span class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ $question['is_excluded'] ? 'Không tính điểm' : $question['points'].' điểm' }}</span>
                     </div>
 
                     @if($question['is_excluded'])
@@ -87,9 +87,9 @@
                     @endif
 
                     @if($question['is_unanswered'])
-                        <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">Chua tra loi.</p>
+                        <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">Chưa trả lời.</p>
                     @elseif($question['has_missing_selection'])
-                        <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">Dap an truoc day khong con kha dung.</p>
+                        <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">Đáp án trước đây không còn khả dụng.</p>
                     @endif
 
                     <div class="mt-4 space-y-2">
@@ -100,27 +100,24 @@
                                 $selectedCorrect = $isSelected
                                     ? ($isFullReview ? $isCorrect : ($option['selected_correct'] ?? false))
                                     : null;
-                                $optionClass = $isSelected && $selectedCorrect
+                                $optionClass = ($isSelected && $selectedCorrect)
                                     ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100'
                                     : (($isSelected && !$selectedCorrect)
                                         ? 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100'
-                                        : (($isFullReview && $isCorrect)
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100'
-                                            : 'border-slate-200 text-slate-700 dark:border-slate-800 dark:text-slate-200'));
+                                        : 'border-slate-200 text-slate-700 dark:border-slate-800 dark:text-slate-200');
                             @endphp
                             <div class="flex items-start justify-between gap-3 rounded-xl border p-3 text-sm {{ $optionClass }}">
                                 <span class="leading-6" data-math-content>{{ $option['text'] }}</span>
                                 <div class="flex shrink-0 flex-wrap justify-end gap-2">
                                     @if($isSelected && $selectedCorrect)<span class="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white">✓ Bạn chọn đúng</span>@endif
                                     @if($isSelected && !$selectedCorrect)<span class="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-bold text-white">✗ Bạn chọn sai</span>@endif
-                                    @if($isFullReview && !$isSelected && $isCorrect)<span class="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-black/20 dark:text-emerald-100">Dap an dung</span>@endif
                                 </div>
                             </div>
                         @endforeach
                     </div>
 
-                    @if($isFullReview && !empty($question['explanation']))
-                        <div class="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600 dark:bg-slate-900/70 dark:text-slate-300"><strong class="text-slate-900 dark:text-white">Giai thich:</strong> <span data-math-content>{{ $question['explanation'] }}</span></div>
+                    @if($isFullReview && !empty($question['explanation']) && !empty($question['is_correct']))
+                        <div class="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600 dark:bg-slate-900/70 dark:text-slate-300"><strong class="text-slate-900 dark:text-white">Giải thích:</strong> <span data-math-content>{{ $question['explanation'] }}</span></div>
                     @endif
                 </article>
             @endforeach

@@ -153,6 +153,7 @@
                                     $selectedCorrect = $isSelected
                                         ? ($isFullReview ? $isCorrect : ($option['selected_correct'] ?? false))
                                         : null;
+                                    $isStaff = auth()->check() && (auth()->user()->isAdmin() || (auth()->user()->isInstructor() && $course->isOwnedBy(auth()->user())));
 
                                     if ($isSelected && $selectedCorrect) {
                                         // Student selected correctly
@@ -160,8 +161,8 @@
                                     } elseif ($isSelected && !$selectedCorrect) {
                                         // Student selected incorrectly
                                         $boxClass = 'border-rose-500 bg-rose-50/70 text-rose-950 ring-1 ring-rose-500/40 dark:border-rose-500/50 dark:bg-rose-500/10 dark:text-rose-100';
-                                    } elseif ($isFullReview && !$isSelected && $isCorrect) {
-                                        // Correct option that wasn't selected
+                                    } elseif ($isStaff && $isFullReview && !$isSelected && $isCorrect) {
+                                        // Correct option that wasn't selected (only visible to staff)
                                         $boxClass = 'border-emerald-400 bg-emerald-50/30 text-emerald-900 border-dashed dark:border-emerald-500/40 dark:bg-emerald-500/5 dark:text-emerald-200';
                                     } else {
                                         // Normal neutral option
@@ -176,7 +177,7 @@
                                                 <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-black shadow-xs">✓</span>
                                             @elseif($isSelected && !$selectedCorrect)
                                                 <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-white text-xs font-black shadow-xs">✗</span>
-                                            @elseif($isFullReview && !$isSelected && $isCorrect)
+                                            @elseif($isStaff && $isFullReview && !$isSelected && $isCorrect)
                                                 <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-black ring-1 ring-emerald-500/40">✓</span>
                                             @else
                                                 <span class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-slate-400 text-xs dark:border-slate-700"></span>
@@ -194,7 +195,7 @@
                                             <span class="inline-flex items-center gap-1 rounded-md bg-rose-600 px-2 py-0.5 text-xs font-bold text-white shadow-xs">
                                                 ✗ Bạn chọn sai
                                             </span>
-                                        @elseif($isFullReview && !$isSelected && $isCorrect)
+                                        @elseif($isStaff && $isFullReview && !$isSelected && $isCorrect)
                                             <span class="inline-flex items-center gap-1 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 text-xs font-bold dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-700">
                                                 ✓ Đáp án đúng
                                             </span>
@@ -204,7 +205,7 @@
                             @endforeach
                         </div>
 
-                        @if($isFullReview && !empty($q['explanation']))
+                        @if($isFullReview && !empty($q['explanation']) && ($isStaff || !empty($q['is_correct'])))
                             <div class="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700 border border-slate-200/80 dark:bg-slate-900/60 dark:text-slate-300 dark:border-slate-800 flex items-start gap-2.5">
                                 <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 <div>

@@ -9,6 +9,7 @@ use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\ContentUpdate;
 use App\Models\Course;
+use Illuminate\Database\Eloquent\Builder;
 use App\Models\CourseReview;
 use App\Models\CourseReviewItem;
 use App\Models\CourseVersion;
@@ -16,6 +17,7 @@ use App\Models\Enrollment;
 use App\Models\HomepageSetting;
 use App\Models\Lesson;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Review;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -129,8 +131,13 @@ class ManageController extends Controller
             'courseSections as sections_count',
             'chapters as chapters_count',
             'lessons',
-            'enrollments as active_enrollments_count' => fn ($query) => $query->where('status', 'active'),
         ]);
+
+        $studentCount = Enrollment::query()
+            ->where('course_id', $course->id)
+            ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
+            ->distinct()
+            ->count('user_id');
 
         $curriculumSections = $course->courseSections->isNotEmpty()
             ? $course->courseSections
@@ -144,7 +151,7 @@ class ManageController extends Controller
 
         $instructorCourseCount = Course::where('instructor_id', $course->instructor_id)->count();
         $instructorStudentCount = Enrollment::query()
-            ->where('status', 'active')
+            ->whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_COMPLETED])
             ->whereHas('course', fn ($query) => $query->where('instructor_id', $course->instructor_id))
             ->distinct('user_id')
             ->count('user_id');
@@ -155,6 +162,7 @@ class ManageController extends Controller
             'curriculumSections' => $curriculumSections,
             'totalLessons' => $totalLessons,
             'previewLessons' => $previewLessons,
+            'studentCount' => $studentCount,
             'instructorCourseCount' => $instructorCourseCount,
             'instructorStudentCount' => $instructorStudentCount,
             'courseRevenue' => $this->courseRevenue($course),
@@ -892,25 +900,10 @@ class ManageController extends Controller
 
     private function courseRevenue(Course $course): float
     {
-        if (Schema::hasTable('order_items')) {
-            $revenue = (float) DB::table('order_items')
-                ->join('orders', 'orders.id', '=', 'order_items.order_id')
-                ->where('orders.status', 'paid')
-                ->where('order_items.course_id', $course->id)
-                ->sum('order_items.price');
-
-            if ($revenue > 0 || ! Schema::hasColumn('orders', 'items')) {
-                return $revenue;
-            }
-        }
-
-        return (float) Order::where('status', 'paid')
-            ->get(['items'])
-            ->sum(function (Order $order) use ($course) {
-                return collect($order->items ?? [])
-                    ->where('course_id', $course->id)
-                    ->sum(fn ($item) => (float) ($item['price'] ?? 0));
-            });
+        return (float) OrderItem::query()
+            ->where('course_id', $course->id)
+            ->whereHas('order', fn (Builder $q) => $q->where('status', 'paid'))
+            ->sum('price');
     }
 
     public function toggleHideReply(Review $review): RedirectResponse
