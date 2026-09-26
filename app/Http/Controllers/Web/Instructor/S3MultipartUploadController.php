@@ -294,8 +294,9 @@ class S3MultipartUploadController extends Controller
         $lessonId = $validated['lesson_id'] ?? null;
         $this->validateKeyPrefix($course, $key);
 
+        $completedKey = null;
         try {
-            return DB::transaction(function () use ($request, $course, $validated, $lessonId, $key, $duration) {
+            return DB::transaction(function () use ($request, $course, $validated, $lessonId, $key, $duration, &$completedKey) {
                 $course = Course::query()->lockForUpdate()->findOrFail($course->id);
                 $this->authorizeCourse($course);
 
@@ -363,6 +364,7 @@ class S3MultipartUploadController extends Controller
                 }
 
                 $result = $this->s3Service->completeMultipartUpload($key, $validated['uploadId'], $validated['parts']);
+                $completedKey = $key;
 
                 // A published-course video can belong to either an existing
                 // lesson update (with a LessonVersion candidate) or a new
@@ -437,10 +439,13 @@ class S3MultipartUploadController extends Controller
                 ]);
             });
         } catch (ValidationException $e) {
+            $this->deleteCompletedUploadIfOrphaned($completedKey);
+
             return response()->json([
                 'message' => $e->validator->errors()->first() ?: $e->getMessage(),
             ], 422);
         } catch (Throwable $e) {
+            $this->deleteCompletedUploadIfOrphaned($completedKey);
             Log::error('S3 multipart upload completion failed.', [
                 'exception' => $e,
                 'course_id' => $course->id,
@@ -667,6 +672,24 @@ class S3MultipartUploadController extends Controller
             403,
             'Đường dẫn S3 video giới thiệu không hợp lệ hoặc không thuộc khóa học này.',
         );
+    }
+
+    private function deleteCompletedUploadIfOrphaned(?string $key): void
+    {
+        if (! filled($key)) {
+            return;
+        }
+
+        try {
+            $this->s3Service->getS3Client()->deleteObject([
+                'Bucket' => $this->s3Service->getBucket(),
+                'Key' => $key,
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('Could not delete orphaned S3 object after failed lesson save.', [
+                'key' => $key,
+            ]);
+        }
     }
 
     private function authorizeCourse(Course $course): void

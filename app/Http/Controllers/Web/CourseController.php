@@ -32,7 +32,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -41,6 +40,124 @@ class CourseController extends Controller
     public function index(Request $request): View
     {
         return $this->catalog($request);
+    }
+
+    public function suggestions(Request $request): JsonResponse
+    {
+        $query = trim((string) $request->query('q', $request->query('search', '')));
+        if (mb_strlen($query) < 2) {
+            return response()->json([
+                'suggestions' => [],
+                'courses' => [],
+                'categories' => [],
+                'instructors' => [],
+                'has_results' => false,
+            ]);
+        }
+
+        $escaped = addcslashes($query, '%_\\');
+        $like = '%'.$escaped.'%';
+
+        // 1. Khóa học (Courses)
+        $courses = $this->publishedCoursesQuery()
+            ->with([
+                'instructor:id,name',
+                'category:id,name,slug',
+            ])
+            ->where(function ($builder) use ($like) {
+                $builder->where('title', 'like', $like)
+                    ->orWhere('short_description', 'like', $like)
+                    ->orWhere('description', 'like', $like)
+                    ->orWhereHas('instructor', fn ($instructorQuery) => $instructorQuery->where('name', 'like', $like))
+                    ->orWhereHas('category', fn ($categoryQuery) => $categoryQuery->where('name', 'like', $like));
+            })
+            ->orderByDesc('published_at')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get(['id', 'title', 'slug', 'thumbnail', 'price', 'discount_price', 'sale_price', 'instructor_id', 'category_id']);
+
+        $courseItems = $courses->map(function ($course) {
+            $priceText = $course->isFree()
+                ? 'Miễn phí'
+                : number_format($course->effective_price, 0, ',', '.').' đ';
+
+            return [
+                'type' => 'course',
+                'id' => $course->id,
+                'label' => $course->title,
+                'meta' => $course->instructor?->name ?: ($course->category?->name ?: 'Khóa học'),
+                'url' => route('courses.show', $course->slug),
+                'thumbnail' => $course->thumbnailUrl(),
+                'price_text' => $priceText,
+            ];
+        })->values()->all();
+
+        // 2. Danh mục khóa học (Categories)
+        $categories = Category::query()
+            ->active()
+            ->where(function ($q) {
+                $q->whereNull('parent_id')
+                    ->orWhereHas('parent', fn ($pq) => $pq->active());
+            })
+            ->where('name', 'like', $like)
+            ->with('parent:id,name,slug')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->limit(4)
+            ->get(['id', 'name', 'slug', 'parent_id']);
+
+        $categoryItems = $categories->map(function ($category) {
+            return [
+                'type' => 'category',
+                'id' => $category->id,
+                'label' => $category->name,
+                'meta' => $category->parent?->name ? ('Danh mục · '.$category->parent->name) : 'Danh mục',
+                'url' => route('courses.category', $category->slug),
+            ];
+        })->values()->all();
+
+        // 3. Giảng viên đang dạy khóa học (Instructors)
+        $instructors = User::query()
+            ->where('role', 'instructor')
+            ->where('instructor_status', 'approved')
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('account_status')
+                    ->orWhereNotIn('account_status', ['locked', 'suspended']);
+            })
+            ->whereNull('locked_at')
+            ->where('name', 'like', $like)
+            ->whereHas('courses', fn ($courseQuery) => $courseQuery->published())
+            ->orderBy('name')
+            ->limit(4)
+            ->get(['id', 'name', 'avatar']);
+
+        $instructorItems = $instructors->map(function ($instructor) {
+            return [
+                'type' => 'instructor',
+                'id' => $instructor->id,
+                'label' => $instructor->name,
+                'meta' => 'Giảng viên',
+                'url' => route('instructors.show', $instructor),
+                'avatar' => $instructor->avatarUrl(),
+            ];
+        })->values()->all();
+
+        $allSuggestions = collect()
+            ->concat($courseItems)
+            ->concat($categoryItems)
+            ->concat($instructorItems)
+            ->unique(fn ($item) => $item['type'].'|'.$item['url'])
+            ->values()
+            ->all();
+
+        return response()->json([
+            'suggestions' => $allSuggestions,
+            'courses' => $courseItems,
+            'categories' => $categoryItems,
+            'instructors' => $instructorItems,
+            'has_results' => ! empty($allSuggestions),
+        ]);
     }
 
     public function category(Request $request, Category $category): View
@@ -261,10 +378,8 @@ class CourseController extends Controller
                     Cache::put($cacheKey, true, now()->addMinutes(30));
                     ConvertVideoToHLS::dispatch($lesson);
                 }
-            } else {
-                $videoSource = $videoLesson->video_url ?: ($videoLesson->video_path
-                    ? Storage::disk('public')->url($videoLesson->video_path)
-                    : null);
+            } elseif (filled($videoLesson->video_url) && preg_match('/youtube\.com|youtu\.be|vimeo\.com/i', (string) $videoLesson->video_url)) {
+                $videoSource = $videoLesson->video_url;
             }
         }
 

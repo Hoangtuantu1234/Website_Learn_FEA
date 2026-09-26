@@ -97,7 +97,9 @@ class CourseReviewController extends Controller
             $request->boolean('publish_immediately', true),
         );
 
-        return back()->with('success', "Đã duyệt khóa học \"{$course->title}\".");
+        return redirect()
+            ->route('admin.courses.index')
+            ->with('success', "Đã duyệt khóa học \"{$course->title}\".");
     }
 
     public function reject(RejectCourseRequest $request, Course $course): RedirectResponse

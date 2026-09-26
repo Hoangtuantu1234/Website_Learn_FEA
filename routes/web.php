@@ -90,6 +90,9 @@ Route::get('/home', [HomeController::class, 'index'])->name('home');
 Route::get('/dieu-khoan-dang-ky', [LegalDocumentController::class, 'registrationTerms'])
     ->name('legal.registration-terms');
 Route::get('/courses', [CourseController::class, 'index'])->name('courses.index');
+Route::get('/courses/suggestions', [CourseController::class, 'suggestions'])
+    ->middleware('throttle:30,1')
+    ->name('courses.suggestions');
 
 // ─── STATIC INFORMATION PAGES ───
 Route::prefix('pages')->name('pages.')->group(function () {

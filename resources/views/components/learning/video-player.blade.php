@@ -31,8 +31,11 @@
         <video
             id="learning-video-{{ $lesson->id }}"
             controls
+            controlsList="nodownload noremoteplayback"
+            disablePictureInPicture
             preload="metadata"
             playsinline
+            oncontextmenu="return false"
             class="aspect-video max-h-[calc(100vh-14rem)] w-full max-w-full bg-black"
             @if($isEnrolled && $progressUrl)
                 data-lesson-progress-video
@@ -240,13 +243,15 @@
                         });
                     }
 
-                    // Token tự refresh mỗi 9 phút
+                    // Token tự refresh mỗi 8 phút để HLS không giữ URL quá hạn.
                     setInterval(async () => {
+                        currentToken = null;
                         const t = await fetchToken();
-                        if (t) {
+                        if (t && hls) {
                             currentToken = t;
+                            hls.loadSource(`/api/video/hls/${lessonId}/master.m3u8?token=${t}`);
                         }
-                    }, 9 * 60 * 1000);
+                    }, 8 * 60 * 1000);
 
                     videoElement.dataset.progressManagedBy = 'learning-player.js';
                 }
@@ -301,7 +306,7 @@
                 </div>
             @endif
         @else
-            <video src="{{ $lesson->video_url }}" controls class="aspect-video max-h-[calc(100vh-14rem)] w-full max-w-full bg-black">
+            <video src="{{ $lesson->video_url }}" controls controlsList="nodownload noremoteplayback" disablePictureInPicture playsinline oncontextmenu="return false" class="aspect-video max-h-[calc(100vh-14rem)] w-full max-w-full bg-black">
                 Trình duyệt không hỗ trợ phát video HTML5.
             </video>
         @endif

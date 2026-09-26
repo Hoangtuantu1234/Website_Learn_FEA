@@ -399,4 +399,59 @@ class CourseReviewWorkflowTest extends TestCase
             ->assertSee('Xem hồ sơ giảng viên')
             ->assertSee(route('admin.instructors.applications.show', $pendingInstructor));
     }
+
+    public function test_admin_approve_redirects_to_course_management_not_review_list(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'email_verified_at' => now()]);
+        $instructor = User::factory()->create(['role' => 'instructor', 'instructor_status' => 'approved', 'is_active' => true]);
+        $course = $this->makeSubmittableCourse($instructor);
+        app(CourseReviewService::class)->submitForReview($course, $instructor);
+
+        $checklist = collect(config('course.admin_review_checklist'))->mapWithKeys(fn ($label, $key) => [$key => 1])->all();
+
+        $this->actingAs($admin)
+            ->withSession(['two_factor_passed_at' => now()->timestamp])
+            ->from(route('admin.course-reviews.show', $course))
+            ->post(route('admin.course-reviews.approve', $course), [
+                'checklist' => $checklist,
+                'publish_immediately' => 1,
+            ])
+            ->assertRedirect(route('admin.courses.index'))
+            ->assertSessionHas('success');
+
+        $this->assertEquals(CourseStatus::Published->value, $course->fresh()->status);
+    }
+
+    public function test_admin_approve_from_manage_action_redirects_to_course_management(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'email_verified_at' => now()]);
+        $instructor = User::factory()->create(['role' => 'instructor', 'instructor_status' => 'approved', 'is_active' => true]);
+        $course = $this->makeSubmittableCourse($instructor);
+        app(CourseReviewService::class)->submitForReview($course, $instructor);
+
+        $this->actingAs($admin)
+            ->withSession(['two_factor_passed_at' => now()->timestamp])
+            ->from(route('admin.courses.review', $course))
+            ->post(route('admin.courses.approve', $course))
+            ->assertRedirect(route('admin.courses.index'))
+            ->assertSessionHas('success');
+
+        $this->assertEquals(CourseStatus::Published->value, $course->fresh()->status);
+    }
+
+    public function test_admin_cannot_approve_course_that_is_not_pending(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'email_verified_at' => now()]);
+        $instructor = User::factory()->create(['role' => 'instructor', 'instructor_status' => 'approved', 'is_active' => true]);
+        $course = $this->makeDraftCourse($instructor);
+
+        $this->actingAs($admin)
+            ->withSession(['two_factor_passed_at' => now()->timestamp])
+            ->from(route('admin.courses.review', $course))
+            ->post(route('admin.courses.approve', $course))
+            ->assertRedirect(route('admin.courses.review', $course))
+            ->assertSessionHas('error');
+
+        $this->assertEquals(CourseStatus::Draft->value, $course->fresh()->status);
+    }
 }

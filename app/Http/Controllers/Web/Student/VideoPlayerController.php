@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Lesson;
 use App\Models\LessonProgress;
+use App\Models\User;
 use App\Models\VideoAccessLog;
 use App\Models\VideoWatchHistory;
 use App\Services\LearningProgressService;
@@ -69,14 +70,13 @@ class VideoPlayerController extends Controller
     public function playlist(Request $request, Lesson $lesson)
     {
         $token = $request->query('token');
-        if (! is_string($token) || ! $this->tokenService->verifyToken($token, $lesson->id)) {
-            return response('Not found', 404, ['Access-Control-Allow-Origin' => '*']);
+        $lesson = $this->resolveAuthorizedLesson($request, $lesson, is_string($token) ? $token : null);
+        if (! $lesson) {
+            return response('Not found', 404, $this->protectedMediaHeaders());
         }
 
-        $lesson = $this->videoSourceService->forViewer($lesson, $this->tokenService->getUserIdFromToken($token));
         $directories = $this->videoSourceService->directories($lesson);
         $content = null;
-        $s3Directory = null;
 
         if ($this->usesS3() && $directories['s3']) {
             // Cache raw content by media location. Signed URLs and viewer tokens
@@ -87,7 +87,6 @@ class VideoPlayerController extends Controller
                     $content = Cache::remember('hls_source_v2_'.hash('sha256', config('filesystems.disks.s3.bucket').'|'.$key),
                         now()->addMinutes(5), fn () => Storage::disk('s3')->get($key));
                     if ($content !== null) {
-                        $s3Directory = $directories['s3'];
                         break;
                     }
                 } catch (\Throwable $e) {
@@ -112,7 +111,7 @@ class VideoPlayerController extends Controller
         }
 
         if ($content === null) {
-            return response('Not found', 404, ['Access-Control-Allow-Origin' => '*']);
+            return response('Not found', 404, $this->protectedMediaHeaders());
         }
 
         $withToken = fn (string $uri) => $uri.(str_contains($uri, '?') ? '&' : '?').'token='.urlencode($token);
@@ -120,36 +119,36 @@ class VideoPlayerController extends Controller
         foreach ($lines as &$line) {
             $line = trim($line);
             if ($line !== '' && ! str_starts_with($line, '#')) {
-                if ($s3Directory && preg_match('/^[a-zA-Z0-9_-]+\.ts$/D', $line)) {
-                    try {
-                        $line = Storage::disk('s3')->temporaryUrl($s3Directory.'/'.$line, now()->addHours(2));
+                $path = parse_url($line, PHP_URL_PATH) ?: $line;
+                $basename = basename($path);
+                if (preg_match('/^[a-zA-Z0-9_-]+\.ts$/D', $basename)) {
+                    $line = $withToken($basename);
 
-                        continue;
-                    } catch (\Throwable) {
-                        // The authenticated segment endpoint can serve this location too.
-                    }
+                    continue;
                 }
                 $line = $withToken($line);
             } elseif (str_contains($line, 'URI=')) {
-                $line = preg_replace_callback('/URI="([^"]+)"/', fn ($match) => 'URI="'.$withToken($match[1]).'"', $line);
+                $line = preg_replace_callback('/URI="([^"]+)"/', function (array $match) use ($withToken) {
+                    $uriPath = parse_url($match[1], PHP_URL_PATH) ?: $match[1];
+
+                    return 'URI="'.$withToken(basename($uriPath)).'"';
+                }, $line);
             }
         }
 
-        return response(implode("\n", $lines), 200, [
+        return response(implode("\n", $lines), 200, $this->protectedMediaHeaders([
             'Content-Type' => 'application/vnd.apple.mpegurl; charset=utf-8',
-            'Access-Control-Allow-Origin' => '*',
-            'Cache-Control' => 'private, no-cache, no-store, must-revalidate',
-        ]);
+        ]));
     }
 
     public function key(Request $request, Lesson $lesson)
     {
         $token = $request->query('token');
-        if (! is_string($token) || ! $this->tokenService->verifyToken($token, $lesson->id)) {
-            return response('Not found', 404);
+        $lesson = $this->resolveAuthorizedLesson($request, $lesson, is_string($token) ? $token : null);
+        if (! $lesson) {
+            return response('Not found', 404, $this->protectedMediaHeaders());
         }
 
-        $lesson = $this->videoSourceService->forViewer($lesson, $this->tokenService->getUserIdFromToken($token));
         $directories = $this->videoSourceService->directories($lesson);
         $content = null;
         if ($this->usesS3() && $directories['s3']) {
@@ -163,31 +162,42 @@ class VideoPlayerController extends Controller
             $content = Storage::disk('local')->get($directories['local'].'/enc.key');
         }
         if ($content === null) {
-            return response('Not found', 404);
+            return response('Not found', 404, $this->protectedMediaHeaders());
         }
 
-        return response($content, 200, [
+        return response($content, 200, $this->protectedMediaHeaders([
             'Content-Type' => 'application/octet-stream',
-            'Cache-Control' => 'private, no-cache, no-store, must-revalidate',
-        ]);
+        ]));
     }
 
     public function segment(Request $request, Lesson $lesson, $segment)
     {
         $token = $request->query('token');
-        if (! is_string($token) || ! $this->tokenService->verifyToken($token, $lesson->id)
-            || ! preg_match('/^[a-zA-Z0-9_-]+\.ts$/D', $segment)) {
-            return response('Not found', 404, ['Access-Control-Allow-Origin' => '*']);
+        if (! preg_match('/^[a-zA-Z0-9_-]+\.ts$/D', $segment)) {
+            return response('Not found', 404, $this->protectedMediaHeaders());
         }
 
-        $lesson = $this->videoSourceService->forViewer($lesson, $this->tokenService->getUserIdFromToken($token));
+        $lesson = $this->resolveAuthorizedLesson($request, $lesson, is_string($token) ? $token : null);
+        if (! $lesson) {
+            return response('Not found', 404, $this->protectedMediaHeaders());
+        }
+
         $directories = $this->videoSourceService->directories($lesson);
+        $headers = $this->protectedMediaHeaders([
+            'Content-Type' => 'video/mp2t',
+        ]);
+
         if ($this->usesS3() && $directories['s3']) {
             try {
                 $key = $directories['s3'].'/'.$segment;
-                if (Storage::disk('s3')->exists($key)) {
-                    return redirect()->away(Storage::disk('s3')->temporaryUrl($key, now()->addHours(2)))
-                        ->header('Cache-Control', 'private, no-store');
+                $stream = Storage::disk('s3')->readStream($key);
+                if (is_resource($stream)) {
+                    return response()->stream(function () use ($stream) {
+                        fpassthru($stream);
+                        if (is_resource($stream)) {
+                            fclose($stream);
+                        }
+                    }, 200, $headers);
                 }
             } catch (\Throwable $e) {
                 Log::warning('S3 segment read error: '.$e->getMessage());
@@ -197,20 +207,75 @@ class VideoPlayerController extends Controller
         if ($directories['local']) {
             $key = $directories['local'].'/'.$segment;
             if (Storage::disk('local')->exists($key)) {
-                return response()->file(Storage::disk('local')->path($key), [
-                    'Content-Type' => 'video/mp2t',
-                    'Access-Control-Allow-Origin' => '*',
-                    'Cache-Control' => 'private, no-cache, no-store, must-revalidate',
-                ]);
+                return response()->file(Storage::disk('local')->path($key), $headers);
             }
         }
 
-        return response('Not found', 404, ['Access-Control-Allow-Origin' => '*']);
+        return response('Not found', 404, $this->protectedMediaHeaders());
     }
 
     private function usesS3(): bool
     {
         return ! empty(config('filesystems.disks.s3.key')) && ! empty(config('filesystems.disks.s3.bucket'));
+    }
+
+    private function resolveAuthorizedLesson(Request $request, Lesson $lesson, ?string $token): ?Lesson
+    {
+        if (! is_string($token) || $token === '') {
+            return null;
+        }
+
+        $sessionUserId = $request->user()?->id;
+        if (! $this->tokenService->verifyToken($token, $lesson->id, $sessionUserId)) {
+            return null;
+        }
+
+        $tokenUserId = $this->tokenService->getUserIdFromToken($token);
+        if (! $tokenUserId) {
+            return null;
+        }
+
+        $video = $this->videoSourceService->forViewer($lesson, $tokenUserId);
+        $course = $this->courseForLesson($video);
+
+        return $this->viewerCanAccess($tokenUserId, $video, $course) ? $video : null;
+    }
+
+    private function viewerCanAccess(int $userId, Lesson $lesson, ?Course $course): bool
+    {
+        if ($lesson->is_preview) {
+            return true;
+        }
+
+        $user = User::query()->find($userId);
+        if (! $user || ! $course) {
+            return false;
+        }
+
+        if ($user->isAdmin() || (int) $course->instructor_id === (int) $user->id) {
+            return true;
+        }
+
+        return Enrollment::query()
+            ->where('user_id', $user->id)
+            ->where('course_id', $course->id)
+            ->withLearningAccess()
+            ->exists();
+    }
+
+    /**
+     * @param  array<string, string>  $extra
+     * @return array<string, string>
+     */
+    private function protectedMediaHeaders(array $extra = []): array
+    {
+        return array_merge([
+            'Access-Control-Allow-Origin' => rtrim((string) config('app.url'), '/'),
+            'Cache-Control' => 'private, no-cache, no-store, must-revalidate',
+            'Content-Disposition' => 'inline',
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Robots-Tag' => 'noindex, nofollow',
+        ], $extra);
     }
 
     /** Update watch progress. */

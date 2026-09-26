@@ -271,6 +271,11 @@ class PayOSPaymentSecurityTest extends TestCase
         [$order, , $user] = $this->pendingOrder();
 
         $this->actingAs($user)
+            ->get(route('student.checkout.pay', $order->order_code))
+            ->assertOk()
+            ->assertDontSee('Thanh toán Test');
+
+        $this->actingAs($user)
             ->get(route('student.checkout.mock_gateway', $order->order_code))
             ->assertNotFound();
 

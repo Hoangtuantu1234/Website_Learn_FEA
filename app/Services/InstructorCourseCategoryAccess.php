@@ -108,8 +108,20 @@ class InstructorCourseCategoryAccess
             return true;
         }
 
-        return $this->canTeachCategory($instructor, (int) $course->category_id)
-            || $this->hasSupersededFieldForCategory($instructor, (int) $course->category_id);
+        if ($this->canTeachCategory($instructor, (int) $course->category_id)
+            || $this->hasSupersededFieldForCategory($instructor, (int) $course->category_id)) {
+            return true;
+        }
+
+        // An approved instructor keeps access to courses in their current
+        // primary profile category even when pivot rows are still draft/pending.
+        $profile = $instructor->relationLoaded('instructorProfile')
+            ? $instructor->instructorProfile
+            : $instructor->instructorProfile()->first();
+
+        return $profile
+            && ! empty($profile->category_id)
+            && (int) $profile->category_id === (int) $course->category_id;
     }
 
     public function hasAnyConfiguredTeachingFields(User $instructor): bool

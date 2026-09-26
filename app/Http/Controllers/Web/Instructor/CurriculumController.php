@@ -770,7 +770,7 @@ class CurriculumController extends Controller
     private function authorizeLesson(Course $course, Lesson $lesson): void
     {
         $this->authorizeCourse($course);
-        abort_unless((int) $lesson->course_id === (int) $course->id, 403);
+        abort_unless($lesson->belongsToCourse($course), 404);
     }
 
     private function legacyChapterIdForSection(Course $course, ?CourseSection $section): ?int

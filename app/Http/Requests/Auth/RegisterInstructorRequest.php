@@ -3,9 +3,11 @@
 namespace App\Http\Requests\Auth;
 
 use App\Services\CaptchaService;
+use App\Services\RegistrationPendingCvService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Validator;
 
 class RegisterInstructorRequest extends FormRequest
 {
@@ -102,6 +104,15 @@ class RegisterInstructorRequest extends FormRequest
             'agree_terms' => 'điều khoản giảng viên',
             'captcha_answer' => 'mã xác nhận',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if (! $validator->errors()->has('cv') && $this->hasFile('cv')) {
+                app(RegistrationPendingCvService::class)->persistIfValid($this->file('cv'), $this);
+            }
+        });
     }
 
     public function validateCaptcha(): void

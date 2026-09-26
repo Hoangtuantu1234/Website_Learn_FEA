@@ -724,28 +724,33 @@ class QuizController extends Controller
     private function authorizeLesson(Course $course, Lesson $lesson): void
     {
         abort_unless($course->isOwnedBy(auth()->user()), 403);
-        abort_unless($this->lessonBelongsToCourse($course, $lesson), 404);
+        abort_unless($lesson->belongsToCourse($course), 404);
     }
 
     private function authorizeQuiz(Quiz $quiz): void
     {
-        $quiz->loadMissing('lesson.course');
+        $quiz->loadMissing('lesson.section.course', 'lesson.chapter.course', 'lesson.course');
 
-        abort_unless($quiz->lesson?->course?->isOwnedBy(auth()->user()), 403);
+        abort_unless($this->courseOwnedByInstructor($quiz->lesson?->owningCourse()), 403);
     }
 
     private function authorizeQuestion(QuizQuestion $question): void
     {
-        $question->loadMissing('quiz.lesson.course');
+        $question->loadMissing('quiz.lesson.section.course', 'quiz.lesson.chapter.course', 'quiz.lesson.course');
 
-        abort_unless($question->quiz?->lesson?->course?->isOwnedBy(auth()->user()), 403);
+        abort_unless($this->courseOwnedByInstructor($question->quiz?->lesson?->owningCourse()), 403);
     }
 
     private function authorizeAnswer(QuizOption $answer): void
     {
-        $answer->loadMissing('question.quiz.lesson.course');
+        $answer->loadMissing('question.quiz.lesson.section.course', 'question.quiz.lesson.chapter.course', 'question.quiz.lesson.course');
 
-        abort_unless($answer->question?->quiz?->lesson?->course?->isOwnedBy(auth()->user()), 403);
+        abort_unless($this->courseOwnedByInstructor($answer->question?->quiz?->lesson?->owningCourse()), 403);
+    }
+
+    private function courseOwnedByInstructor(?Course $course): bool
+    {
+        return $course !== null && $course->isOwnedBy(auth()->user());
     }
 
     private function authoringQuestion(QuizQuestion $question): QuizQuestion
@@ -765,16 +770,4 @@ class QuizController extends Controller
         return $projected;
     }
 
-    private function lessonBelongsToCourse(Course $course, Lesson $lesson): bool
-    {
-        if ((int) $lesson->course_id === (int) $course->id) {
-            return true;
-        }
-
-        if ($lesson->section_id && $lesson->section()->where('course_id', $course->id)->exists()) {
-            return true;
-        }
-
-        return $lesson->chapter_id && $lesson->chapter()->where('course_id', $course->id)->exists();
-    }
 }

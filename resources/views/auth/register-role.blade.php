@@ -226,6 +226,11 @@
                         <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                             Upload CV (Định dạng PDF, tối đa 5MB)
                         </label>
+                        @if(! empty($pendingCv['original_name'] ?? null))
+                            <p class="mb-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+                                CV đã tải lên: {{ $pendingCv['original_name'] }}. Bạn có thể tiếp tục sửa form mà không cần tải lại.
+                            </p>
+                        @endif
                         <input
                             type="file"
                             name="cv"

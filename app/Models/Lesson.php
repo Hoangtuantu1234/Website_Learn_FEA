@@ -98,6 +98,28 @@ class Lesson extends Model
         return $this->belongsTo(CourseSection::class, 'section_id');
     }
 
+    public function belongsToCourse(Course $course): bool
+    {
+        if ((int) $this->course_id === (int) $course->id) {
+            return true;
+        }
+
+        if ($this->section_id && $this->section()->where('course_id', $course->id)->exists()) {
+            return true;
+        }
+
+        return $this->chapter_id && $this->chapter()->where('course_id', $course->id)->exists();
+    }
+
+    public function owningCourse(): ?Course
+    {
+        $this->loadMissing(['section.course', 'chapter.course', 'course']);
+
+        return $this->section?->course
+            ?? $this->course
+            ?? $this->chapter?->course;
+    }
+
     public function quiz(): HasOne
     {
         return $this->hasOne(Quiz::class);

@@ -125,6 +125,62 @@ class VideoProtectionTest extends TestCase
 
         $this->assertStringContainsString('enc.key?token='.urlencode($token), $content);
         $this->assertStringContainsString('segment0.ts?token='.urlencode($token), $content);
+        $this->assertStringNotContainsString('http', $content);
+        $this->assertStringNotContainsString('amazonaws', $content);
+    }
+
+    public function test_s3_playlist_keeps_tokenized_segments_instead_of_direct_object_urls(): void
+    {
+        Storage::fake('s3');
+        config([
+            'filesystems.disks.s3.key' => 'testing',
+            'filesystems.disks.s3.secret' => 'testing',
+            'filesystems.disks.s3.bucket' => 'test-video',
+        ]);
+
+        $instructor = User::create([
+            'name' => 'Instructor '.uniqid(),
+            'email' => 'inst_'.uniqid().'@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'instructor',
+            'instructor_status' => 'approved',
+        ]);
+        $lesson = $this->createTestLesson($instructor);
+        $lesson->update(['hls_manifest_key' => 'hls/lessons/'.$lesson->id.'/playlist.m3u8']);
+        Storage::disk('s3')->put('hls/lessons/'.$lesson->id.'/playlist.m3u8', "#EXTM3U\n#EXTINF:10.0,\nsegment0.ts\n");
+
+        $token = app(VideoTokenService::class)->generateToken($instructor->id, $lesson->id);
+        $content = $this->get(route('video.hls.playlist', ['lesson' => $lesson->id, 'token' => $token]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('segment0.ts?token='.urlencode($token), $content);
+        $this->assertStringNotContainsString('temporary', $content);
+        $this->assertStringNotContainsString('X-Amz-', $content);
+    }
+
+    public function test_guest_and_unenrolled_student_cannot_get_video_token(): void
+    {
+        $lesson = $this->createTestLesson();
+
+        $this->getJson(route('video.token', $lesson))->assertUnauthorized();
+
+        $student = User::factory()->create(['role' => 'student', 'email_verified_at' => now()]);
+        $this->actingAs($student)
+            ->getJson(route('video.token', $lesson))
+            ->assertForbidden();
+    }
+
+    public function test_direct_segment_request_without_valid_token_is_rejected(): void
+    {
+        $lesson = $this->createTestLesson();
+        $hlsDir = 'lesson-hls/'.$lesson->id;
+        Storage::disk('local')->put($hlsDir.'/segment0.ts', 'ts-bytes');
+
+        $this->get(route('video.hls.segment', ['lesson' => $lesson->id, 'segment' => 'segment0.ts']))
+            ->assertNotFound();
+        $this->get(route('video.hls.segment', ['lesson' => $lesson->id, 'segment' => 'segment0.ts', 'token' => 'bad']))
+            ->assertNotFound();
     }
 
     public function test_ai_scan_reads_original_s3_video_and_cleans_up_on_success_and_failure(): void

@@ -168,6 +168,7 @@ class AuthenticationTest extends TestCase
     {
         Notification::fake();
         Storage::fake('public');
+        Storage::fake('local');
 
         $this->postRegister('instructor', [
             'email' => 'instructor-cv-only@example.com',
@@ -181,6 +182,70 @@ class AuthenticationTest extends TestCase
         $this->assertNull($user->instructorApplication?->certificate_path);
         $this->assertFalse($user->needs_admin_review);
         Storage::disk('public')->assertExists($user->instructorProfile?->cv);
+    }
+
+    public function test_instructor_registration_retains_valid_cv_after_validation_failure(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        $captcha = $this->registerCaptcha();
+        $this->from(route('register.role', 'instructor'))
+            ->post(route('register.role', 'instructor'), [
+                ...$this->registerPayload('instructor', [
+                    'email' => 'instructor-cv-retry@example.com',
+                    'experience' => '',
+                    'cv' => UploadedFile::fake()->create('ho-so-giang-vien.pdf', 200, 'application/pdf'),
+                ]),
+                'captcha_token' => $captcha['token'],
+                'captcha_answer' => $captcha['answer'],
+            ])
+            ->assertRedirect(route('register.role', 'instructor'))
+            ->assertSessionHasErrors('experience')
+            ->assertSessionHas('registration.pending_cv');
+
+        $this->get(route('register.role', 'instructor'))
+            ->assertOk()
+            ->assertSee('CV đã tải lên: ho-so-giang-vien.pdf', false);
+
+        Notification::fake();
+        $captcha = $this->registerCaptcha();
+        $this->post(route('register.role', 'instructor'), [
+            ...$this->registerPayload('instructor', [
+                'email' => 'instructor-cv-retry@example.com',
+                'experience' => '5 năm kinh nghiệm lập trình',
+            ]),
+            'captcha_token' => $captcha['token'],
+            'captcha_answer' => $captcha['answer'],
+        ])->assertRedirect(route('verification.notice'));
+
+        $user = User::query()->where('email', 'instructor-cv-retry@example.com')->firstOrFail();
+        $this->assertNotEmpty($user->instructorProfile?->cv);
+        Storage::disk('public')->assertExists($user->instructorProfile->cv);
+        $this->assertNull(session('registration.pending_cv'));
+    }
+
+    public function test_instructor_registration_rejects_invalid_or_oversized_cv_without_staging(): void
+    {
+        Storage::fake('local');
+
+        $this->from(route('register.role', 'instructor'))
+            ->postRegister('instructor', [
+                'email' => 'instructor-bad-cv@example.com',
+                'cv' => UploadedFile::fake()->create('cv.txt', 20, 'text/plain'),
+            ])
+            ->assertSessionHasErrors('cv');
+        $this->assertNull(session('registration.pending_cv'));
+        $this->assertSame([], Storage::disk('local')->allFiles('registration-pending-cvs'));
+
+        $this->from(route('register.role', 'instructor'))
+            ->postRegister('instructor', [
+                'email' => 'instructor-big-cv@example.com',
+                'cv' => UploadedFile::fake()->create('cv.pdf', 6000, 'application/pdf'),
+            ])
+            ->assertSessionHasErrors('cv');
+        $this->assertNull(session('registration.pending_cv'));
+        $this->assertSame([], Storage::disk('local')->allFiles('registration-pending-cvs'));
     }
 
     public function test_duplicate_email_registration_is_rejected(): void

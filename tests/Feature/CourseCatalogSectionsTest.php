@@ -61,6 +61,30 @@ class CourseCatalogSectionsTest extends TestCase
                 && $courses->every(fn ($course) => (float) ($course->discount_price ?? $course->sale_price ?? $course->price) <= 0));
     }
 
+    public function test_search_suggestions_return_real_courses_instructors_and_categories(): void
+    {
+        $this->seedCatalogCourses();
+
+        $this->getJson(route('courses.suggestions', ['q' => 'trả phí']))
+            ->assertOk()
+            ->assertJsonFragment(['type' => 'course'])
+            ->assertJsonFragment(['label' => 'Khóa trả phí 1']);
+
+        $this->getJson(route('courses.suggestions', ['q' => 'Công nghệ']))
+            ->assertOk()
+            ->assertJsonFragment(['type' => 'category', 'label' => 'Công nghệ']);
+
+        $empty = $this->getJson(route('courses.suggestions', ['q' => 'xyzkhongtontai']))
+            ->assertOk()
+            ->json('suggestions');
+        $this->assertSame([], $empty);
+
+        $this->get(route('courses.index'))
+            ->assertOk()
+            ->assertSee('/courses/suggestions', false)
+            ->assertSee('Không tìm thấy kết quả', false);
+    }
+
     private function seedCatalogCourses(): void
     {
         $instructor = User::factory()->create([

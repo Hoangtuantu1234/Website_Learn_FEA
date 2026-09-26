@@ -98,8 +98,8 @@ class DatabaseSeeder extends Seeder
             // Yêu cầu hồ sơ chứng chỉ giảng viên
             InstructorDocumentRequirementSeeder::class,
 
-            // Nạp 200+ hồ sơ Giảng viên toàn diện kèm Chứng chỉ (T1-T9/2026)
-            InstructorDataSeeder::class,
+            // Nạp 200+ hồ sơ Giảng viên toàn diện kèm Chứng chỉ (T1-T9/2026) [Tùy chọn cho stress-test/demo]
+            // InstructorDataSeeder::class,
 
             // Cấu hình hệ thống & Tiện ích
             BadgeSeeder::class,
@@ -107,14 +107,14 @@ class DatabaseSeeder extends Seeder
             FaqSeeder::class,
             HomepageSettingSeeder::class,
 
-            // Nạp 100.000+ Người dùng & Tiến độ học tập biến động (T1/2025 - T8/2026)
-            LargeScaleUserSeeder::class,
+            // Nạp 100.000+ Người dùng & Tiến độ học tập biến động (T1/2025 - T8/2026) [Dữ liệu ảo demo]
+            // LargeScaleUserSeeder::class,
 
-            // Nạp đánh giá khóa học 4-5 sao & bình luận bài học
-            StudentReviewSeeder::class,
+            // Nạp đánh giá khóa học 4-5 sao & bình luận bài học [Dữ liệu ảo demo]
+            // StudentReviewSeeder::class,
 
-            // Nạp Doanh thu biến động chuẩn xác 3.582.962.000 VNĐ (T1/2025 - T8/2026)
-            RevenueOrderSeeder::class,
+            // Nạp Doanh thu biến động chuẩn xác 3.582.962.000 VNĐ (T1/2025 - T8/2026) [Dữ liệu ảo demo]
+            // RevenueOrderSeeder::class,
 
             // Lộ trình học tập
             LearningPathSeeder::class,

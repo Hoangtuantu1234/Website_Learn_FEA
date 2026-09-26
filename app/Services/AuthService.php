@@ -109,12 +109,12 @@ class AuthService
                     return $user;
                 }
 
-                $cvPath = null;
-                if ($request->hasFile('cv')) {
-                    $cvPath = $request->file('cv')->store('instructor_cvs', 'public');
-                    if (! is_string($cvPath)) {
-                        throw new RuntimeException('Không thể lưu CV giảng viên.');
-                    }
+                $pendingCv = app(RegistrationPendingCvService::class);
+                if ($request->hasFile('cv') && ! $pendingCv->current($request)) {
+                    $pendingCv->persistIfValid($request->file('cv'), $request);
+                }
+                $cvPath = $pendingCv->promoteToPublic($request);
+                if (is_string($cvPath)) {
                     $storedFiles[] = ['disk' => 'public', 'path' => $cvPath];
                 }
 
@@ -165,6 +165,10 @@ class AuthService
             }
 
             throw $exception;
+        }
+
+        if (($validated['role'] ?? null) === 'instructor') {
+            app(RegistrationPendingCvService::class)->forget($request);
         }
 
         ActivityLogService::log($user->id, 'register', User::class, $user->id, [

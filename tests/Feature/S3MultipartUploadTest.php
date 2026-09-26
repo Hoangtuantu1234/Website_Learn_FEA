@@ -174,6 +174,30 @@ class S3MultipartUploadTest extends TestCase
         ]);
     }
 
+    public function test_store_video_lesson_with_pending_upload_flag_creates_placeholder_for_s3(): void
+    {
+        $instructor = $this->signInInstructor();
+        [$course, $section] = $this->courseWithSection($instructor);
+
+        $this->post(route('instructor.courses.sections.lessons.store', [$course, $section]), [
+            'title' => 'Video chờ S3',
+            'type' => 'video',
+            'pending_video_upload' => '1',
+            'video_original_name' => 'pending.mp4',
+            'duration' => 90,
+            'sort_order' => 1,
+            'status' => 'draft',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('lessons', [
+            'course_id' => $course->id,
+            'title' => 'Video chờ S3',
+            'type' => 'video',
+            'upload_status' => 'pending',
+            'processing_status' => 'pending',
+        ]);
+    }
+
     public function test_store_lesson_with_completed_s3_key_dispatches_hls_job(): void
     {
         Queue::fake();

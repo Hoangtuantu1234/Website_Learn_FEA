@@ -163,6 +163,87 @@ class InstructorQuizAuthoringTest extends TestCase
         Storage::disk('public')->assertExists($version->image_path);
     }
 
+    public function test_owner_can_update_question_explanation_and_answers(): void
+    {
+        [$instructor, $course, $lesson] = $this->authoringContext();
+        $quiz = app(QuizContentService::class)->getOrCreateForLesson($lesson);
+        $question = app(QuizContentService::class)->createQuestion($quiz, [
+            'question_text' => 'Câu hỏi gốc',
+            'question_type' => QuizQuestion::TYPE_SINGLE,
+            'score' => 1,
+        ], [
+            ['option_text' => 'A', 'is_correct' => true, 'sort_order' => 0],
+            ['option_text' => 'B', 'is_correct' => false, 'sort_order' => 1],
+        ]);
+        $answer = $question->options()->firstOrFail();
+
+        $this->actingAs($instructor)
+            ->put(route('instructor.quiz-questions.update', $question), [
+                'question_text' => 'Câu hỏi đã sửa',
+                'question_type' => 'single_choice',
+                'score' => 2,
+                'explanation' => 'Đây là bài giải.',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($instructor)
+            ->put(route('instructor.quiz-answers.update', $answer), [
+                'answer_text' => 'Đáp án đã sửa',
+                'is_correct' => true,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Đây là bài giải.', $question->fresh()->explanation);
+        $this->assertSame('Đáp án đã sửa', $answer->fresh()->option_text);
+    }
+
+    public function test_non_owner_and_student_cannot_mutate_quiz_answers(): void
+    {
+        [$instructor, , $lesson] = $this->authoringContext();
+        $quiz = app(QuizContentService::class)->getOrCreateForLesson($lesson);
+        $question = app(QuizContentService::class)->createQuestion($quiz, [
+            'question_text' => 'Câu hỏi bảo vệ',
+            'question_type' => QuizQuestion::TYPE_SINGLE,
+            'score' => 1,
+        ], [
+            ['option_text' => 'A', 'is_correct' => true, 'sort_order' => 0],
+        ]);
+        $answer = $question->options()->firstOrFail();
+
+        $intruder = User::factory()->create([
+            'role' => 'instructor',
+            'instructor_status' => 'approved',
+            'email_verified_at' => now(),
+        ]);
+        $this->actingAs($intruder)
+            ->put(route('instructor.quiz-questions.update', $question), [
+                'question_text' => 'IDOR',
+                'question_type' => 'single_choice',
+                'score' => 1,
+            ])
+            ->assertForbidden();
+        $this->actingAs($intruder)
+            ->put(route('instructor.quiz-answers.update', $answer), [
+                'answer_text' => 'IDOR',
+                'is_correct' => true,
+            ])
+            ->assertForbidden();
+
+        $student = User::factory()->create([
+            'role' => 'student',
+            'email_verified_at' => now(),
+        ]);
+        $this->actingAs($student)
+            ->put(route('instructor.quiz-answers.update', $answer), [
+                'answer_text' => 'Student',
+                'is_correct' => true,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('Câu hỏi bảo vệ', $question->fresh()->question);
+        $this->assertSame('A', $answer->fresh()->option_text);
+    }
+
     /**
      * @return array{0: User, 1: Course, 2: Lesson}
      */

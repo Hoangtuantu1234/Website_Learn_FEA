@@ -209,6 +209,12 @@ class CartCheckoutTest extends TestCase
 
         $order = Order::where('user_id', $this->student->id)->first();
 
+        $this->actingAs($this->student)
+            ->get(route('student.checkout.pay', $order->order_code))
+            ->assertOk()
+            ->assertSee('Thanh toán Test')
+            ->assertSee('data-test-payment-button', false);
+
         // Giả lập gửi thông tin thanh toán thành công
         $response = $this->actingAs($this->student)
             ->post(route('student.checkout.simulate', $order->order_code), [

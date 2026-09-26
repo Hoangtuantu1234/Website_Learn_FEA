@@ -349,6 +349,156 @@ class InstructorCurriculumLessonTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_owner_can_update_and_delete_their_lesson(): void
+    {
+        $instructor = $this->signInInstructor();
+        [$course, $section] = $this->courseWithSection($instructor);
+        $lesson = Lesson::create([
+            'course_id' => $course->id,
+            'section_id' => $section->id,
+            'title' => 'Bài học gốc',
+            'type' => Lesson::TYPE_DOCUMENT,
+            'content' => 'Nội dung gốc',
+            'duration' => 60,
+            'duration_seconds' => 60,
+            'sort_order' => 1,
+            'status' => Lesson::STATUS_DRAFT,
+        ]);
+
+        $this->put(route('instructor.courses.lessons.update', [$course, $lesson]), [
+            'title' => 'Bài học đã sửa',
+            'type' => Lesson::TYPE_DOCUMENT,
+            'content' => 'Nội dung mới',
+            'duration' => 90,
+            'sort_order' => 1,
+            'status' => Lesson::STATUS_DRAFT,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('lessons', [
+            'id' => $lesson->id,
+            'title' => 'Bài học đã sửa',
+        ]);
+
+        $this->delete(route('instructor.courses.lessons.destroy', [$course, $lesson]))
+            ->assertRedirect();
+        $this->assertDatabaseMissing('lessons', ['id' => $lesson->id]);
+    }
+
+    public function test_owner_can_update_lesson_when_course_id_is_stale_but_section_matches(): void
+    {
+        $instructor = $this->signInInstructor();
+        [$course, $section] = $this->courseWithSection($instructor);
+        [$otherCourse] = $this->courseWithSection($instructor);
+        $lesson = Lesson::create([
+            'course_id' => $otherCourse->id,
+            'section_id' => $section->id,
+            'title' => 'Bài lệch course_id',
+            'type' => Lesson::TYPE_DOCUMENT,
+            'content' => 'Nội dung',
+            'duration' => 30,
+            'duration_seconds' => 30,
+            'sort_order' => 1,
+            'status' => Lesson::STATUS_DRAFT,
+        ]);
+
+        $this->put(route('instructor.courses.lessons.update', [$course, $lesson]), [
+            'title' => 'Đã sửa bài lệch',
+            'type' => Lesson::TYPE_DOCUMENT,
+            'content' => 'Nội dung đã sửa',
+            'duration' => 45,
+            'sort_order' => 1,
+            'status' => Lesson::STATUS_DRAFT,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('lessons', [
+            'id' => $lesson->id,
+            'title' => 'Đã sửa bài lệch',
+        ]);
+    }
+
+    public function test_student_and_non_owner_cannot_update_or_delete_lesson(): void
+    {
+        $owner = $this->signInInstructor();
+        [$course, $section] = $this->courseWithSection($owner);
+        $lesson = Lesson::create([
+            'course_id' => $course->id,
+            'section_id' => $section->id,
+            'title' => 'Bài bị bảo vệ',
+            'type' => Lesson::TYPE_DOCUMENT,
+            'content' => 'Nội dung',
+            'duration' => 20,
+            'duration_seconds' => 20,
+            'sort_order' => 1,
+            'status' => Lesson::STATUS_DRAFT,
+        ]);
+
+        $other = User::factory()->create([
+            'role' => 'instructor',
+            'instructor_status' => 'approved',
+            'email_verified_at' => now(),
+        ]);
+        $this->actingAs($other)
+            ->withSession(['two_factor_passed_at' => now()->timestamp])
+            ->put(route('instructor.courses.lessons.update', [$course, $lesson]), [
+                'title' => 'Xâm nhập',
+                'type' => Lesson::TYPE_DOCUMENT,
+                'content' => 'Không được',
+                'duration' => 20,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($other)
+            ->withSession(['two_factor_passed_at' => now()->timestamp])
+            ->delete(route('instructor.courses.lessons.destroy', [$course, $lesson]))
+            ->assertForbidden();
+
+        $student = User::factory()->create([
+            'role' => 'student',
+            'email_verified_at' => now(),
+        ]);
+        $this->actingAs($student)
+            ->withSession(['two_factor_passed_at' => now()->timestamp])
+            ->put(route('instructor.courses.lessons.update', [$course, $lesson]), [
+                'title' => 'Học viên sửa',
+                'type' => Lesson::TYPE_DOCUMENT,
+                'content' => 'Không được',
+                'duration' => 20,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('lessons', [
+            'id' => $lesson->id,
+            'title' => 'Bài bị bảo vệ',
+        ]);
+    }
+
+    public function test_video_lesson_can_be_created_with_pending_s3_upload_flag(): void
+    {
+        $instructor = $this->signInInstructor();
+        [$course, $section] = $this->courseWithSection($instructor);
+
+        $this->post(route('instructor.courses.sections.lessons.store', [$course, $section]), [
+            'title' => 'Video chờ tải S3',
+            'type' => Lesson::TYPE_VIDEO,
+            'pending_video_upload' => '1',
+            'video_original_name' => 'bai-giang.mp4',
+            'video_mime' => 'video/mp4',
+            'video_size' => 2048,
+            'duration' => 120,
+            'sort_order' => 1,
+            'status' => Lesson::STATUS_DRAFT,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('lessons', [
+            'course_id' => $course->id,
+            'section_id' => $section->id,
+            'title' => 'Video chờ tải S3',
+            'type' => Lesson::TYPE_VIDEO,
+            'upload_status' => 'pending',
+            'processing_status' => 'pending',
+        ]);
+    }
+
     public function test_section_create_and_update_keep_plain_text_description_without_code_leak(): void
     {
         $instructor = $this->signInInstructor();

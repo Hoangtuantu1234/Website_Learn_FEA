@@ -56,6 +56,7 @@ class StoreLessonRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::in(Lesson::TYPES)],
             's3_key' => ['nullable', 'string', 'max:1024', 'prohibited_unless:type,video'],
+            'pending_video_upload' => ['nullable', 'boolean', 'prohibited_unless:type,video'],
             'video_original_name' => ['nullable', 'string', 'max:255'],
             'video_mime' => ['nullable', 'string', 'max:100'],
             'video_size' => ['nullable', 'integer', 'min:0', 'max:'.$maxVideoBytes],
@@ -213,6 +214,7 @@ class StoreLessonRequest extends FormRequest
     private function hasVideoContent(?Lesson $lesson): bool
     {
         return $this->filled('s3_key')
+            || $this->boolean('pending_video_upload')
             || $this->filled('video_url')
             || $this->hasFile('video_file')
             || ($lesson && ($lesson->video_url || $lesson->video_path || $lesson->original_video_key || $lesson->hls_manifest_key));

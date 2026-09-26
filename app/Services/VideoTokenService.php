@@ -30,19 +30,25 @@ class VideoTokenService
     }
 
     /**
-     * Xác thực token
+     * Xác thực token. Có thể khóa theo user_id và gia hạn TTL khi đang phát.
      */
-    public function verifyToken(string $token, int $lessonId): bool
+    public function verifyToken(string $token, int $lessonId, ?int $userId = null): bool
     {
         $cacheKey = self::TOKEN_PREFIX.$token;
 
         $data = Cache::get($cacheKey);
 
-        if (! $data) {
+        if (! is_array($data) || (int) ($data['lesson_id'] ?? 0) !== $lessonId) {
             return false;
         }
 
-        return $data['lesson_id'] === $lessonId;
+        if ($userId !== null && (int) ($data['user_id'] ?? 0) !== $userId) {
+            return false;
+        }
+
+        Cache::put($cacheKey, $data, self::TOKEN_LIFETIME);
+
+        return true;
     }
 
     /**

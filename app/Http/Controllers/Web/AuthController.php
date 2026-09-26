@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\AuthService;
 use App\Services\CaptchaService;
+use App\Services\RegistrationPendingCvService;
 use App\Services\DatabaseSessionInvalidator;
 use App\Services\EmailVerificationService;
 use App\Services\TwoFactorService;
@@ -96,6 +97,9 @@ class AuthController extends Controller
             'role' => $role,
             'categories' => $categories,
             'captcha' => CaptchaService::generate('register'),
+            'pendingCv' => $role === 'instructor'
+                ? app(RegistrationPendingCvService::class)->current(request())
+                : null,
         ]);
     }
 
@@ -113,9 +117,8 @@ class AuthController extends Controller
             $formRequest = app(RegisterRequest::class);
         }
 
-        $formRequest->validateCaptcha();
-
         $data = $formRequest->validated();
+        $formRequest->validateCaptcha();
         $data['role'] = $role;
 
         $user = $authService->register($data, $request);

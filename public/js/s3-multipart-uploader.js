@@ -956,6 +956,9 @@ function createLessonFormState(config) {
 
                 try {
                     const formData = new FormData(form);
+                    if (this.pendingVideoFile && !this.s3Key) {
+                        formData.set('pending_video_upload', '1');
+                    }
                     if (this.s3Key) {
                         formData.set('s3_key', this.s3Key);
                     }

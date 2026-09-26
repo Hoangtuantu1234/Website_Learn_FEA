@@ -210,6 +210,31 @@
                             </button>
                         </div>
                     </form>
+
+                    @if(app()->environment(['local', 'testing']) && config('services.payos.mode') === 'mock')
+                        <div class="mt-4 border-t border-dashed border-amber-300 pt-4 dark:border-amber-700">
+                            <form
+                                method="POST"
+                                action="{{ route('student.checkout.simulate', $order->order_code) }}"
+                                x-data="{ submitting: false }"
+                                x-on:submit="if (submitting || !confirm('Xác nhận thanh toán test cho đơn hàng này?')) { $event.preventDefault(); return; } submitting = true"
+                            >
+                                @csrf
+                                <input type="hidden" name="status" value="success">
+                                <button
+                                    type="submit"
+                                    data-test-payment-button
+                                    :disabled="submitting"
+                                    class="flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-4 text-xs font-extrabold text-amber-800 transition hover:bg-amber-100 disabled:cursor-wait disabled:opacity-60 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
+                                >
+                                    <span x-text="submitting ? 'Đang xử lý thanh toán test...' : 'Thanh toán Test'"></span>
+                                </button>
+                            </form>
+                            <p class="mt-2 text-center text-[11px] text-amber-700 dark:text-amber-400">
+                                Chỉ dùng để test; không kết nối cổng thanh toán và không phát sinh giao dịch thật.
+                            </p>
+                        </div>
+                    @endif
                 </div>
             </div>
 

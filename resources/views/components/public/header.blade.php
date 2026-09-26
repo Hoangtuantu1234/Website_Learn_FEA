@@ -91,12 +91,7 @@
 
         <div data-header-right class="ml-auto flex min-w-0 flex-1 items-center justify-end gap-0.5 sm:gap-1">
             <form data-student-search method="GET" action="{{ route('courses.index') }}" class="mr-auto hidden w-full max-w-[360px] min-w-48 lg:block xl:max-w-[420px]">
-                <label class="relative block">
-                    <span class="sr-only">Tìm kiếm khóa học</span>
-                    <svg class="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
-                    <input type="search" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm khóa học, kỹ năng hoặc giảng viên"
-                           class="h-10 w-full rounded-full border border-slate-300 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#0056D2] focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:ring-blue-950">
-                </label>
+                <x-course-search-suggest :value="request('search')" placeholder="Tìm kiếm khóa học, kỹ năng hoặc giảng viên" />
             </form>
 
             <button type="button" x-on:click="toggleMenu('search')"
@@ -208,12 +203,7 @@
     <div id="header-mobile-search" x-cloak x-show="isOpen('search')" x-transition.opacity x-on:click.outside="if (isOpen('search')) closeMenus()"
          class="absolute inset-x-0 top-full border-b border-slate-200 bg-white p-3 shadow-lg lg:hidden dark:border-slate-800 dark:bg-slate-900">
         <form method="GET" action="{{ route('courses.index') }}" class="mx-auto max-w-2xl">
-            <label class="relative block">
-                <span class="sr-only">Tìm kiếm khóa học</span>
-                <svg class="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
-                <input type="search" name="search" value="{{ request('search') }}" placeholder="Tìm kiếm khóa học…"
-                       class="h-11 w-full rounded-xl border border-slate-300 bg-white pl-11 pr-4 text-sm outline-none focus:border-[#0056D2] focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950">
-            </label>
+            <x-course-search-suggest :value="request('search')" placeholder="Tìm kiếm khóa học…" input-class="h-11 w-full rounded-xl border border-slate-300 bg-white pl-11 pr-4 text-sm outline-none focus:border-[#0056D2] focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:focus:ring-blue-950" />
         </form>
     </div>
 

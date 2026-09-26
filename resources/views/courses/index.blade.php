@@ -123,14 +123,7 @@
             <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(160px,.8fr)_minmax(140px,.7fr)_minmax(170px,.9fr)_minmax(140px,.7fr)_auto]">
                 {{-- Ô tìm kiếm --}}
                 <div class="relative">
-                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                        </svg>
-                    </div>
-                    <input type="search" name="search" value="{{ $search }}"
-                           placeholder="Tìm tên khóa học, giảng viên..."
-                           class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-900">
+                    <x-course-search-suggest :value="$search" placeholder="Tìm tên khóa học, giảng viên..." input-class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-900" />
                 </div>
 
                 {{-- Danh mục có ô tìm kiếm nhanh --}}

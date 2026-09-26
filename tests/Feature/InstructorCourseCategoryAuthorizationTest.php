@@ -76,6 +76,42 @@ class InstructorCourseCategoryAuthorizationTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_owner_can_manage_existing_course_in_primary_profile_category_while_field_is_pending(): void
+    {
+        [$instructor, $allowed] = $this->instructorWithTeachingFields(1);
+        $instructor->instructorProfile->update(['category_id' => $allowed->id]);
+        InstructorTeachingField::query()
+            ->where('instructor_profile_id', $instructor->instructorProfile->id)
+            ->where('category_id', $allowed->id)
+            ->update(['approval_status' => InstructorTeachingField::STATUS_PENDING]);
+        $course = $this->course($instructor, $allowed);
+        $section = CourseSection::create(['course_id' => $course->id, 'title' => 'Chương 1', 'sort_order' => 0]);
+        $lesson = \App\Models\Lesson::create([
+            'course_id' => $course->id,
+            'section_id' => $section->id,
+            'title' => 'Bài học chủ sở hữu',
+            'type' => 'document',
+            'content' => 'Nội dung',
+            'sort_order' => 0,
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($instructor)
+            ->put(route('instructor.courses.lessons.update', [$course, $lesson]), [
+                'title' => 'Bài học chủ sở hữu đã sửa',
+                'type' => 'document',
+                'content' => 'Nội dung mới',
+                'sort_order' => 0,
+                'status' => 'draft',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('lessons', [
+            'id' => $lesson->id,
+            'title' => 'Bài học chủ sở hữu đã sửa',
+        ]);
+    }
+
     public function test_s3_upload_is_rejected_when_course_category_is_not_in_teaching_fields(): void
     {
         [$instructor, $allowed, $outside] = $this->instructorWithTeachingFields(1);

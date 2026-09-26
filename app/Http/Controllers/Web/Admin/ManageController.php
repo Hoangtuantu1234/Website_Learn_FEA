@@ -367,7 +367,9 @@ class ManageController extends Controller
 
         $reviewService->approve($course, $request->user(), $checklist, true);
 
-        return back()->with('success', "Đã duyệt khóa học \"{$course->title}\".");
+        return redirect()
+            ->route('admin.courses.index')
+            ->with('success', "Đã duyệt khóa học \"{$course->title}\".");
     }
 
     public function reject(Request $request, Course $course, CourseReviewService $reviewService): RedirectResponse
@@ -510,8 +512,12 @@ class ManageController extends Controller
 
         $label = $actionLabels[$action] ?? 'Đã xử lý';
 
+        $redirectRoute = $action === CourseReview::ACTION_APPROVED
+            ? 'admin.courses.index'
+            : 'admin.courses.pending';
+
         return redirect()
-            ->route('admin.courses.pending')
+            ->route($redirectRoute)
             ->with('success', "{$label} khóa học \"{$course->title}\".");
     }
 

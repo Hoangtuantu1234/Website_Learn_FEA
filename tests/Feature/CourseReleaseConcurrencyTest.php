@@ -21,6 +21,19 @@ class CourseReleaseConcurrencyTest extends TestCase
     // one publishes V2 while the other's REPEATABLE READ snapshot is still V1.
     use DatabaseTruncation;
 
+    /**
+     * These lookup rows are installed by migrations and are shared by the
+     * remaining test process. Truncating them makes later RBAC tests depend on
+     * execution order because RefreshDatabase does not rerun migrations.
+     *
+     * @var array<int, string>
+     */
+    protected array $exceptTables = [
+        'roles',
+        'permissions',
+        'permission_role',
+    ];
+
     protected function tearDown(): void
     {
         // Keep committed fixtures isolated without rolling back unrelated,
